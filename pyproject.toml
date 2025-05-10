@@ -1,0 +1,22 @@
+[project]
+name = "fastapi-postgres"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi[standard]>=0.115.12",
+    "uvicorn[standard]",
+    "sqlalchemy",
+    "asyncpg",
+    "psycopg2-binary",
+    "python-dotenv",
+    "pydantic",
+    "httpx",
+    "jinja2",
+    "python-multipart",
+    "email-validator",
+    "itsdangerous",
+    "pydantic-settings",
+    "greenlet"
+]

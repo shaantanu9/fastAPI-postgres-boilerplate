@@ -1,0 +1,54 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+.env
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environments
+.venv
+env/
+venv/
+ENV/
+environment/
+*.env
+
+# Package distribution
+dist/
+build/
+*.egg-info/
+
+# System files
+.DS_Store
+
+# IDE files
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# Log and temp files
+*.log
+tmp/
+temp/
+
+# Database files (if applicable)
+*.sqlite
+*.db
+
+# Jupyter Notebook checkpoint files
+.ipynb_checkpoints/
+
+# Additional ignores (customize as needed)
+*.pyc
+
