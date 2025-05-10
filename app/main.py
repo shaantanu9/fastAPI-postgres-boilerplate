@@ -43,10 +43,14 @@ app.add_exception_handler(Exception, generic_exception_handler)
 # Mount versioned API
 app.include_router(api_router, prefix="/api/v1")
 
+from app.utils.task_queue import async_task_queue  # Async task queue for background jobs
+
 # Startup event: create tables if they don't exist
 @app.on_event("startup")
 async def on_startup():
     import logging
+    # Start async task queue worker
+    async_task_queue.start()
     try:
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
@@ -54,6 +58,11 @@ async def on_startup():
     except Exception as e:
         logging.error(f"[Startup Error] Could not create tables: {e}")
         raise
+
+@app.on_event("shutdown")
+async def on_shutdown():
+    # Stop async task queue worker
+    async_task_queue.stop()
 
 # (Optional) Add root endpoint or health check
 @app.get("/")
