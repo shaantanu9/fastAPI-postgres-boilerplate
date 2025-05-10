@@ -18,14 +18,29 @@ from app.db.schemas.user import UserRead, UserCreate
 from app.db.session import get_db
 
 # Main CRUD router for users
-router = get_crud_router(
-    service=UserService(),          # The service handling DB logic for users
-    schema_read=UserRead,           # Pydantic schema for response serialization
-    schema_create=UserCreate,       # Pydantic schema for request validation
-    prefix="/users",               # API prefix for all user endpoints
-    get_db=get_db,                  # Dependency for DB session
-    tags=["Users"]                 # Tag for API documentation grouping
-)
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
+from app.services.user_service import UserService
+from app.db.schemas.user import UserRead, UserCreate
+from app.db.session import get_db
+
+router = APIRouter(prefix="/users", tags=["Users"])
+
+@router.post("/", response_model=UserRead, status_code=status.HTTP_201_CREATED)
+async def create_user(user: UserCreate, db: AsyncSession = Depends(get_db)):
+    try:
+        return await UserService().create_user(
+            db=db,
+            username=user.username,
+            name=user.name,
+            email=user.email,
+            password=user.password,
+            roles=user.roles,
+            is_active=user.is_active
+        )
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
 
 # Example custom endpoint with OpenAPI tag and description
 def example_custom_endpoint():

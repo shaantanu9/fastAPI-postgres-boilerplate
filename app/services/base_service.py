@@ -57,7 +57,10 @@ class BaseService(Generic[ModelType]):
             return db_obj
         except SQLAlchemyError as e:
             await db.rollback()
-            raise
+            import logging
+            from fastapi import HTTPException
+            logging.error(f"Database error during add: {e}")
+            raise HTTPException(status_code=500, detail=f"Database error: {e}")
 
     async def update(self, db: AsyncSession, db_obj: ModelType, obj_in: Dict[str, Any]) -> ModelType:
         try:
@@ -69,7 +72,10 @@ class BaseService(Generic[ModelType]):
             return db_obj
         except SQLAlchemyError as e:
             await db.rollback()
-            raise
+            import logging
+            from fastapi import HTTPException
+            logging.error(f"Database error during add: {e}")
+            raise HTTPException(status_code=500, detail=f"Database error: {e}")
 
     async def update_one(self, db: AsyncSession, filters: Dict[str, Any], obj_in: Dict[str, Any]) -> Optional[ModelType]:
         db_obj = await self.find_one(db, filters)
@@ -83,7 +89,10 @@ class BaseService(Generic[ModelType]):
             await db.commit()
         except SQLAlchemyError as e:
             await db.rollback()
-            raise
+            import logging
+            from fastapi import HTTPException
+            logging.error(f"Database error during add: {e}")
+            raise HTTPException(status_code=500, detail=f"Database error: {e}")
 
     async def delete_one(self, db: AsyncSession, filters: Dict[str, Any]) -> bool:
         db_obj = await self.find_one(db, filters)
@@ -130,7 +139,10 @@ class BaseService(Generic[ModelType]):
             return db_objs
         except SQLAlchemyError as e:
             await db.rollback()
-            raise
+            import logging
+            from fastapi import HTTPException
+            logging.error(f"Database error during add: {e}")
+            raise HTTPException(status_code=500, detail=f"Database error: {e}")
 
     async def bulk_add(self, db: AsyncSession, objs_in: List[Dict[str, Any]]) -> List[ModelType]:
         try:
@@ -142,7 +154,10 @@ class BaseService(Generic[ModelType]):
             return db_objs
         except SQLAlchemyError as e:
             await db.rollback()
-            raise
+            import logging
+            from fastapi import HTTPException
+            logging.error(f"Database error during add: {e}")
+            raise HTTPException(status_code=500, detail=f"Database error: {e}")
 
     async def bulk_delete(self, db: AsyncSession, filters: Dict[str, Any]) -> int:
         try:
@@ -154,7 +169,10 @@ class BaseService(Generic[ModelType]):
             return result.rowcount
         except SQLAlchemyError as e:
             await db.rollback()
-            raise
+            import logging
+            from fastapi import HTTPException
+            logging.error(f"Database error during add: {e}")
+            raise HTTPException(status_code=500, detail=f"Database error: {e}")
 
     async def aggregate(self, db: AsyncSession, aggregates: Dict[str, Any], filters: Optional[Dict[str, Any]] = None):
         try:
@@ -217,7 +235,10 @@ class BaseService(Generic[ModelType]):
             return result.rowcount
         except SQLAlchemyError as e:
             await db.rollback()
-            raise
+            import logging
+            from fastapi import HTTPException
+            logging.error(f"Database error during add: {e}")
+            raise HTTPException(status_code=500, detail=f"Database error: {e}")
 
     async def all(self, db: AsyncSession, filters: Optional[Dict[str, Any]] = None) -> List[ModelType]:
         return await self.find(db, filters)
