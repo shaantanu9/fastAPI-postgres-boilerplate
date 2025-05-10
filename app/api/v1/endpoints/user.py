@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.schemas.user import UserCreate, UserRead
-from app.db.crud.user import get_users, create_user
+from app.services.user_service import UserService
 from app.db.session import get_db
 from app.core.exception_handlers import AppException
 from sqlalchemy.exc import SQLAlchemyError
@@ -12,7 +12,7 @@ router = APIRouter()
 @router.get("/users", response_model=List[UserRead])
 async def read_users(db: AsyncSession = Depends(get_db)):
     try:
-        users = await get_users(db)
+        users = await UserService.get_users(db)
         return users
     except AppException as ae:
         raise ae
@@ -22,7 +22,7 @@ async def read_users(db: AsyncSession = Depends(get_db)):
 @router.post("/users", response_model=UserRead)
 async def create_new_user(user: UserCreate, db: AsyncSession = Depends(get_db)):
     try:
-        return await create_user(db, name=user.name, email=user.email)
+        return await UserService.create_user(db, name=user.name, email=user.email)
     except AppException as ae:
         raise ae
     except SQLAlchemyError as se:
