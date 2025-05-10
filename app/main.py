@@ -1,9 +1,17 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
+from sqlalchemy.exc import SQLAlchemyError
 from app.core.logging import setup_logging
 from app.core.config import get_settings
 from app.db.base import Base
 from app.db.session import engine
-from app.api.v1.endpoints import user as user_endpoints
+from app.api.v1.api import api_router
+from app.core.exception_handlers import (
+    AppException,
+    app_exception_handler,
+    http_exception_handler,
+    sqlalchemy_exception_handler,
+    generic_exception_handler,
+)
 
 # Initialize logging and settings
 setup_logging()
@@ -11,8 +19,14 @@ settings = get_settings()
 
 app = FastAPI(title="FastAPI Modular Boilerplate", version="1.0.0")
 
-# Include API routers
-app.include_router(user_endpoints.router, prefix="/api/v1", tags=["users"])
+# Register centralized exception handlers
+app.add_exception_handler(AppException, app_exception_handler)
+app.add_exception_handler(HTTPException, http_exception_handler)
+app.add_exception_handler(SQLAlchemyError, sqlalchemy_exception_handler)
+app.add_exception_handler(Exception, generic_exception_handler)
+
+# Mount versioned API
+app.include_router(api_router, prefix="/api/v1")
 
 # Startup event: create tables if they don't exist
 @app.on_event("startup")
