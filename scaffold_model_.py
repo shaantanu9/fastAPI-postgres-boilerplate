@@ -819,6 +819,21 @@ def add_model(model, fields):
         ]:
             with open(subdir, "a") as f:
                 f.write(imp)
+        # Ensure model is imported in base.py for Alembic autogenerate
+        base_path = f"{BASE_PATH}/db/base.py"
+        import_line = f"from app.db.models.{snake_case(model)} import {model}\n"
+        with open(base_path, "r+") as f:
+            lines = f.readlines()
+            if import_line not in lines:
+                # Insert after the last existing import
+                insert_at = len(lines)
+                for i, line in enumerate(lines):
+                    if line.startswith("from app.db.models."):
+                        insert_at = i + 1
+                lines.insert(insert_at, import_line)
+                f.seek(0)
+                f.writelines(lines)
+                f.truncate()
         # Update API router
         update_api_py(model, "add")
         # Track
