@@ -21,4 +21,7 @@ dependencies = [
     "greenlet",
     "fastapi-mcp>=0.3.3",
     "loguru>=0.7.3",
+    "alembic",
+    "pyjwt",
+    "passlib[bcrypt]",
 ]

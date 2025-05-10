@@ -1,4 +1,5 @@
 from fastapi import Request, HTTPException
+import logging
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import SQLAlchemyError
 from loguru import logger

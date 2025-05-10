@@ -1,3 +1,19 @@
+"""
+Main application entrypoint for FastAPI Modular Boilerplate.
+
+This file initializes the FastAPI app, configures logging, middleware, exception handlers,
+mounts the versioned API, manages startup/shutdown events, and provides a root health check endpoint.
+
+Sections:
+- Logging and settings initialization
+- Middleware for request/response logging
+- Centralized exception handlers
+- API router mounting
+- Startup/shutdown events (DB table creation, background tasks)
+- Health check endpoint
+- Uvicorn run block (for direct execution)
+"""
+
 from fastapi import FastAPI, HTTPException
 from sqlalchemy.exc import SQLAlchemyError
 from app.core.logging import setup_logging
@@ -13,19 +29,48 @@ from app.core.exception_handlers import (
     generic_exception_handler,
 )
 
-# Initialize logging and settings
-setup_logging()
-settings = get_settings()
+# --- Logging and settings initialization ---
+setup_logging()  # Configure loguru and std logging
+settings = get_settings()  # Load environment variables and app config
 
-app = FastAPI(title="FastAPI Modular Boilerplate", version="1.0.0")
+# --- FastAPI app instance ---
+app = FastAPI(
+    title="FastAPI Modular Boilerplate",
+    version="1.0.0",
+    description="""
+    A modular and scalable FastAPI boilerplate for rapid backend development.
+    Features async SQLAlchemy, Alembic migrations, JWT authentication, role-based permissions, async task queue, and more.
+    """,
+    contact={
+        "name": "Your Team or Name",
+        "email": "your@email.com",
+        "url": "https://yourprojectsite.com"
+    },
+    license_info={
+        "name": "MIT License",
+        "url": "https://opensource.org/licenses/MIT"
+    },
+    terms_of_service="https://yourprojectsite.com/terms/",
+    docs_url="/docs",
+    redoc_url="/redoc",
+    openapi_tags=[
+        {"name": "Users", "description": "Operations with users: CRUD, authentication, roles."},
+        {"name": "Auth", "description": "Authentication endpoints: login, token, etc."},
+        {"name": "Health", "description": "Health and readiness checks for orchestration."},
+        # Add more tags as you add more routers
+    ]
+)
 
-# Request/Response Logging Middleware
+# --- Middleware for request/response logging ---
 from loguru import logger
 import time
 from starlette.requests import Request
 
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
+    """
+    Middleware to log each HTTP request and response with timing info.
+    """
     start_time = time.time()
     response = await call_next(request)
     process_time = (time.time() - start_time) * 1000
@@ -34,42 +79,87 @@ async def log_requests(request: Request, call_next):
     )
     return response
 
-# Register centralized exception handlers
+# --- Register centralized exception handlers ---
 app.add_exception_handler(AppException, app_exception_handler)
 app.add_exception_handler(HTTPException, http_exception_handler)
 app.add_exception_handler(SQLAlchemyError, sqlalchemy_exception_handler)
 app.add_exception_handler(Exception, generic_exception_handler)
 
-# Mount versioned API
+# --- Mount versioned API router ---
 app.include_router(api_router, prefix="/api/v1")
 
 from app.utils.task_queue import async_task_queue  # Async task queue for background jobs
 
-# Startup event: create tables if they don't exist
+# --- Startup event: create tables and start background workers ---
 @app.on_event("startup")
 async def on_startup():
+    """
+    Startup event handler:
+    - Starts the async task queue worker
+    - Creates all database tables if they don't exist
+    """
     import logging
-    # Start async task queue worker
+    from sqlalchemy.ext.asyncio import AsyncEngine
     async_task_queue.start()
     try:
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
+        if isinstance(engine, AsyncEngine):
+            async with engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
+        else:
+            with engine.begin() as conn:
+                Base.metadata.create_all(bind=conn)
         logging.info("Database tables created/verified.")
     except Exception as e:
         logging.error(f"[Startup Error] Could not create tables: {e}")
         raise
 
+# --- Shutdown event: stop background workers ---
 @app.on_event("shutdown")
 async def on_shutdown():
-    # Stop async task queue worker
+    """
+    Shutdown event handler: stops the async task queue worker.
+    """
     async_task_queue.stop()
 
-# (Optional) Add root endpoint or health check
-@app.get("/")
+# --- Health check endpoints for orchestration and monitoring ---
+@app.get("/", tags=["Health"], description="Welcome message and basic service status.")
 def root():
+    """
+    Root endpoint for health checks and welcome message.
+    """
     return {"status": "ok", "message": "Welcome to the FastAPI Modular Boilerplate!"}
 
-# If running directly, launch with uvicorn
+@app.get("/health", tags=["Health"], description="Basic liveness probe for orchestration.")
+def health():
+    """
+    Liveness probe endpoint for orchestration/monitoring (returns 200 if app is running).
+    """
+    return {"status": "healthy"}
+
+@app.get("/ready", tags=["Health"], description="Readiness probe for orchestration (checks DB connection).")
+async def ready():
+    """
+    Readiness probe endpoint for orchestration/monitoring.
+    Attempts a simple DB connection to verify app is ready to serve traffic.
+    """
+    from app.db.session import get_db
+    try:
+        # Try to acquire and release a DB connection (sync or async)
+        db_gen = get_db()
+        if hasattr(db_gen, "__anext__"):  # async generator
+            db = await db_gen.__anext__()
+            if hasattr(db, "close"):
+                await db.close()
+        else:
+            db = next(db_gen)
+            if hasattr(db, "close"):
+                db.close()
+        return {"status": "ready"}
+    except Exception as e:
+        from fastapi import status
+        return {"status": "not ready", "detail": str(e)}, status.HTTP_503_SERVICE_UNAVAILABLE
+
+# --- Run with uvicorn if executed directly ---
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("app.main:app", host="127.0.0.1", port=8000, reload=True)

@@ -21,9 +21,16 @@ fi
 # 3. Install dependencies
 uv sync
 
-# 4. Run migrations (create tables)
-echo "[INFO] Running FastAPI app to create tables..."
-uv run -- python -c "from app import models; from app.database import engine; import asyncio; async def create(): import sys; try: async with engine.begin() as conn: await conn.run_sync(models.Base.metadata.create_all); print('[INFO] Tables created!') except Exception as e: print('[ERROR]', e); sys.exit(1); asyncio.run(create())"
+# 4. Run Alembic migrations (if alembic_migrate.sh is present)
+if [ -f ./alembic_migrate.sh ]; then
+    echo "[INFO] Running Alembic migrations using alembic_migrate.sh..."
+    ./alembic_migrate.sh
+else
+    echo "[INFO] No alembic_migrate.sh found. You can run migrations manually:"
+    echo "  1. Ensure .env uses sync DB URL (postgresql://...)"
+    echo "  2. Ensure alembic.ini sqlalchemy.url is set to sync DB URL"
+    echo "  3. Run: alembic upgrade head"
+fi
 
 # 5. Print success message
 echo "[INFO] Setup complete! To run the server:"
