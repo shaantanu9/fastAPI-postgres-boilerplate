@@ -19,6 +19,21 @@ settings = get_settings()
 
 app = FastAPI(title="FastAPI Modular Boilerplate", version="1.0.0")
 
+# Request/Response Logging Middleware
+from loguru import logger
+import time
+from starlette.requests import Request
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    start_time = time.time()
+    response = await call_next(request)
+    process_time = (time.time() - start_time) * 1000
+    logger.info(
+        f"{request.method} {request.url.path} - Status: {response.status_code} - Time: {process_time:.2f}ms"
+    )
+    return response
+
 # Register centralized exception handlers
 app.add_exception_handler(AppException, app_exception_handler)
 app.add_exception_handler(HTTPException, http_exception_handler)
