@@ -90,28 +90,31 @@ app.include_router(api_router, prefix="/api/v1")
 
 from app.utils.task_queue import async_task_queue  # Async task queue for background jobs
 
-# --- Startup event: create tables and start background workers ---
+# --- Startup event: start background workers only (DB schema managed by Alembic) ---
 @app.on_event("startup")
 async def on_startup():
     """
     Startup event handler:
     - Starts the async task queue worker
-    - Creates all database tables if they don't exist
+    - (Removed: table creation, handled by Alembic migrations)
     """
     import logging
-    from sqlalchemy.ext.asyncio import AsyncEngine
     async_task_queue.start()
-    try:
-        if isinstance(engine, AsyncEngine):
-            async with engine.begin() as conn:
-                await conn.run_sync(Base.metadata.create_all)
-        else:
-            with engine.begin() as conn:
-                Base.metadata.create_all(bind=conn)
-        logging.info("Database tables created/verified.")
-    except Exception as e:
-        logging.error(f"[Startup Error] Could not create tables: {e}")
-        raise
+    logging.info("Startup complete. Database migrations must be managed via Alembic.")
+    # ---
+    # The following code is commented out to prevent conflicts with Alembic migrations:
+    # from sqlalchemy.ext.asyncio import AsyncEngine
+    # try:
+    #     if isinstance(engine, AsyncEngine):
+    #         async with engine.begin() as conn:
+    #             await conn.run_sync(Base.metadata.create_all)
+    #     else:
+    #         with engine.begin() as conn:
+    #             Base.metadata.create_all(bind=conn)
+    #     logging.info("Database tables created/verified.")
+    # except Exception as e:
+    #     logging.error(f"[Startup Error] Could not create tables: {e}")
+    #     raise
 
 # --- Shutdown event: stop background workers ---
 @app.on_event("shutdown")
