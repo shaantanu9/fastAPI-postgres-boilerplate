@@ -18,5 +18,6 @@ dependencies = [
     "email-validator",
     "itsdangerous",
     "pydantic-settings",
-    "greenlet"
+    "greenlet",
+    "fastapi-mcp>=0.3.3",
 ]

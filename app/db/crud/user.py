@@ -1,5 +1,5 @@
-from .models import User
 from sqlalchemy.future import select
+from app.db.models.user import User
 
 async def get_users(db):
     result = await db.execute(select(User))
