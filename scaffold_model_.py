@@ -109,6 +109,41 @@ def validate_fields(fields):
             valid = False
     return valid
 
+def edit_base_file_model(model):
+    path = f"{BASE_PATH}/db/base.py"
+    import_statement = f"from app.db.models.{model} import {model.capitalize()}\n"
+
+    with open(path, "r") as f:
+        lines = f.readlines()
+
+    # Check if the import statement already exists
+    if any(line.strip() == import_statement.strip() for line in lines):
+        # Import already exists, do nothing
+        return
+
+    # Import does not exist, add it at the end
+    lines.append("\n")
+    lines.append(import_statement)
+
+    with open(path, "w") as f:
+        f.writelines(lines)
+
+def clean_base_file_model(model):
+    path = f"{BASE_PATH}/db/base.py"
+    import_statement = f"from app.db.models.{model} import {model.capitalize()}\n"
+
+    with open(path, "r") as f:
+        lines = f.readlines()
+
+    # Remove the import statement if it exists
+    new_lines = [line for line in lines if line.strip() != import_statement.strip()]
+
+    # Only write back if something was removed
+    if len(new_lines) != len(lines):
+        with open(path, "w") as f:
+            f.writelines(new_lines)
+
+    
 def prompt_relationships():
     rels = []
     console.print("[yellow]Enter relationships (format: field:FK:TargetModel), e.g., author_id:FK:User. Type 'done' when finished.[/yellow]")
@@ -199,7 +234,7 @@ SQLAlchemy model for {model}.
 from app.db.base import Base
 from sqlalchemy import Column, Integer, String, ForeignKey
 
-class {model}(Base):
+class {model.capitalize()}(Base):
     """SQLAlchemy ORM model for {model}."""
     __tablename__ = "{snake}s"
     id = Column(Integer, primary_key=True, index=True)
@@ -221,7 +256,7 @@ Pydantic schemas for {model}.
 """
 from pydantic import BaseModel, Field
 
-class {model}Create(BaseModel):
+class {model.capitalize()}Create(BaseModel):
 '''
     for name, typ in fields:
         pytyp = "str" if typ == "str" else "int" if typ == "int" else "float" if typ == "float" else "bool" if typ == "bool" else "str"
@@ -229,10 +264,10 @@ class {model}Create(BaseModel):
         schema_code += f"    {name}: {pytyp} = Field(..., example={repr(example)})\n"
     schema_code += f"""
 
-class {model}Read({model}Create):
+class {model.capitalize()}Read({model.capitalize()}Create):
     id: int
     class Config:
-        orm_mode = True
+        from_attributes = True
 """
     files[schema_path] = schema_code
     # Service
@@ -241,11 +276,11 @@ class {model}Read({model}Create):
 Service for {model} business logic and CRUD operations.
 """
 from app.services.base_service import BaseService
-from app.db.models.{snake} import {model}
+from app.db.models.{snake} import {model.capitalize()}
 
-class {model}Service(BaseService[{model}]):
+class {model.capitalize()}Service(BaseService[{model.capitalize()}]):
     def __init__(self):
-        super().__init__({model})
+        super().__init__({model.capitalize()})
 '''
     files[service_path] = service_code
     # Endpoint
@@ -254,21 +289,21 @@ class {model}Service(BaseService[{model}]):
 Auto-generated CRUD endpoints for {model}.
 """
 from app.api.v1.endpoints.base import get_crud_router
-from app.services.{snake}_service import {model}Service
-from app.db.schemas.{snake} import {model}Read, {model}Create
+from app.services.{snake}_service import {model.capitalize()}Service
+from app.db.schemas.{snake} import {model.capitalize()}Read, {model.capitalize()}Create
 from app.db.session import get_db
 
 router = get_crud_router(
-    service={model}Service(),
-    schema_read={model}Read,
-    schema_create={model}Create,
+    service={model.capitalize()}Service(),
+    schema_read={model.capitalize()}Read,
+    schema_create={model.capitalize()}Create,
     prefix="/{snake}s",
     get_db=get_db,
-    tags=["{model}s"],
-    crud_ops={crud}
+    tags=["{model}s"]
 )
 '''
     files[endpoint_path] = endpoint_code
+    edit_base_file_model(model)
     # Test
     test_path, test_code = make_test_file(model, fields)
     files[test_path] = test_code
@@ -293,9 +328,9 @@ def add_model(model, fields, relationships, crud, examples, dry_run=False, verbo
         if not dry_run:
             # Update __init__.py for imports (backup originals)
             for subdir, imp in [
-                (f"{BASE_PATH}/db/models/__init__.py", f"from .{snake_case(model)} import {model}\n"),
-                (f"{BASE_PATH}/db/schemas/__init__.py", f"from .{snake_case(model)} import {model}Create, {model}Read\n"),
-                (f"{BASE_PATH}/services/__init__.py", f"from .{snake_case(model)}_service import {model}Service\n"),
+                (f"{BASE_PATH}/db/models/__init__.py", f"from .{snake_case(model)} import {model.capitalize()}\n"),
+                (f"{BASE_PATH}/db/schemas/__init__.py", f"from .{snake_case(model)} import {model.capitalize()}Create, {model.capitalize()}Read\n"),
+                (f"{BASE_PATH}/services/__init__.py", f"from .{snake_case(model)}_service import {model.capitalize()}Service\n"),
                 (f"{BASE_PATH}/api/v1/endpoints/__init__.py", f"from .{snake_case(model)} import router as {snake_case(model)}_router\n"),
             ]:
                 if os.path.exists(subdir):
@@ -353,9 +388,9 @@ def remove_model(model):
             remove_file(path)
         # Remove imports from __init__.py
         for subdir, imp in [
-            (f"{BASE_PATH}/db/models/__init__.py", f"from .{snake_case(model)} import {model}\n"),
-            (f"{BASE_PATH}/db/schemas/__init__.py", f"from .{snake_case(model)} import {model}Create, {model}Read\n"),
-            (f"{BASE_PATH}/services/__init__.py", f"from .{snake_case(model)}_service import {model}Service\n"),
+            (f"{BASE_PATH}/db/models/__init__.py", f"from .{snake_case(model)} import {pascal_case(model)}\n"),
+            (f"{BASE_PATH}/db/schemas/__init__.py", f"from .{snake_case(model)} import {pascal_case(model)}Create, {pascal_case(model)}Read\n"),
+            (f"{BASE_PATH}/services/__init__.py", f"from .{snake_case(model)}_service import {pascal_case(model)}Service\n"),
             (f"{BASE_PATH}/api/v1/endpoints/__init__.py", f"from .{snake_case(model)} import router as {snake_case(model)}_router\n"),
         ]:
             if os.path.exists(subdir):
@@ -366,6 +401,7 @@ def remove_model(model):
                         if l != imp:
                             f.write(l)
         update_api_py(model, "remove")
+        clean_base_file_model(model)
         del track[model]
         save_track(track)
         console.print(f"[bold red]Model {model} and all associated files/imports removed.[/bold red]")
@@ -417,6 +453,12 @@ def remove():
     """Remove a model and all related files/imports."""
     model = typer.prompt("Enter model name (CamelCase, e.g., Book)")
     remove_model(model)
+    clean_base_file_model(model)
+
+    # Optionally run Alembic migration
+    if typer.confirm("Run Alembic migration now?", default=False):
+        subprocess.run(["alembic", "revision", "--autogenerate", "-m", f"Remove {model}"], check=False)
+        subprocess.run(["alembic", "upgrade", "head"], check=False)
 
 @app.command()
 def list_models_command():
@@ -537,9 +579,9 @@ def update_model(model, new_fields, new_relationships, new_crud, new_examples, v
         files = make_model_files(model, new_fields, new_relationships, new_crud, new_examples, dry_run=False, verbose=verbose)
         # Update __init__.py for imports (ensure idempotency)
         for subdir, imp in [
-            (f"{BASE_PATH}/db/models/__init__.py", f"from .{snake_case(model)} import {model}\n"),
-            (f"{BASE_PATH}/db/schemas/__init__.py", f"from .{snake_case(model)} import {model}Create, {model}Read\n"),
-            (f"{BASE_PATH}/services/__init__.py", f"from .{snake_case(model)}_service import {model}Service\n"),
+            (f"{BASE_PATH}/db/models/__init__.py", f"from .{snake_case(model)} import {pascal_case(model)}\n"),
+            (f"{BASE_PATH}/db/schemas/__init__.py", f"from .{snake_case(model)} import {pascal_case(model)}Create, {pascal_case(model)}Read\n"),
+            (f"{BASE_PATH}/services/__init__.py", f"from .{snake_case(model)}_service import {pascal_case(model)}Service\n"),
             (f"{BASE_PATH}/api/v1/endpoints/__init__.py", f"from .{snake_case(model)} import router as {snake_case(model)}_router\n"),
         ]:
             if os.path.exists(subdir):
@@ -736,7 +778,7 @@ SQLAlchemy model for {model}.
 from app.db.base import Base
 from sqlalchemy import Column, Integer, String
 
-class {model}(Base):
+class {model.capitalize()}(Base):
     __tablename__ = "{snake}s"
     id = Column(Integer, primary_key=True, index=True)
 '''
@@ -751,17 +793,17 @@ Pydantic schemas for {model}.
 """
 from pydantic import BaseModel
 
-class {model}Create(BaseModel):
+class {model.capitalize()}Create(BaseModel):
 '''
     for name, typ in fields:
         pytyp = "str" if typ == "str" else "int" if typ == "int" else "str"
         schema_code += f"    {name}: {pytyp}\n"
     schema_code += f"""
 
-class {model}Read({model}Create):
+class {model.capitalize()}Read({model.capitalize()}Create):
     id: int
     class Config:
-        orm_mode = True
+        from_attributes = True
 """
     files[schema_path] = schema_code
     # Service
@@ -770,11 +812,11 @@ class {model}Read({model}Create):
 Service for {model} business logic and CRUD operations.
 """
 from app.services.base_service import BaseService
-from app.db.models.{snake} import {model}
+from app.db.models.{snake} import {model.capitalize()}
 
-class {model}Service(BaseService[{model}]):
+class {model.capitalize()}Service(BaseService[{model.capitalize()}]):
     def __init__(self):
-        super().__init__({model})
+        super().__init__({model.capitalize()})
 '''
     files[service_path] = service_code
     # Endpoint
@@ -783,14 +825,14 @@ class {model}Service(BaseService[{model}]):
 Auto-generated CRUD endpoints for {model}.
 """
 from app.api.v1.endpoints.base import get_crud_router
-from app.services.{snake}_service import {model}Service
-from app.db.schemas.{snake} import {model}Read, {model}Create
+from app.services.{snake}_service import {model.capitalize()}Service
+from app.db.schemas.{snake} import {model.capitalize()}Read, {model.capitalize()}Create
 from app.db.session import get_db
 
 router = get_crud_router(
-    service={model}Service(),
-    schema_read={model}Read,
-    schema_create={model}Create,
+    service={model.capitalize()}Service(),
+    schema_read={model.capitalize()}Read,
+    schema_create={model.capitalize()}Create,
     prefix="/{snake}s",
     get_db=get_db,
     tags=["{model}s"]
@@ -812,25 +854,23 @@ def add_model(model, fields):
             created.append(path)
         # Update __init__.py for imports
         for subdir, imp in [
-            (f"{BASE_PATH}/db/models/__init__.py", f"from .{snake_case(model)} import {model}\n"),
-            (f"{BASE_PATH}/db/schemas/__init__.py", f"from .{snake_case(model)} import {model}Create, {model}Read\n"),
-            (f"{BASE_PATH}/services/__init__.py", f"from .{snake_case(model)}_service import {model}Service\n"),
+            (f"{BASE_PATH}/db/models/__init__.py", f"from .{snake_case(model)} import {pascal_case(model)}\n"),
+            (f"{BASE_PATH}/db/schemas/__init__.py", f"from .{snake_case(model)} import {pascal_case(model)}Create, {pascal_case(model)}Read\n"),
+            (f"{BASE_PATH}/services/__init__.py", f"from .{snake_case(model)}_service import {pascal_case(model)}Service\n"),
             (f"{BASE_PATH}/api/v1/endpoints/__init__.py", f"from .{snake_case(model)} import router as {snake_case(model)}_router\n"),
         ]:
             with open(subdir, "a") as f:
                 f.write(imp)
         # Ensure model is imported in base.py for Alembic autogenerate
         base_path = f"{BASE_PATH}/db/base.py"
-        import_line = f"from app.db.models.{snake_case(model)} import {model}\n"
+        import_line = f"from app.db.models.{snake_case(model)} import {pascal_case(model)}\n"
         with open(base_path, "r+") as f:
             lines = f.readlines()
-            if import_line not in lines:
-                # Insert after the last existing import
-                insert_at = len(lines)
-                for i, line in enumerate(lines):
-                    if line.startswith("from app.db.models."):
-                        insert_at = i + 1
-                lines.insert(insert_at, import_line)
+            # Only add if not present (ignoring whitespace)
+            if not any(l.strip() == import_line.strip() for l in lines):
+                if lines and not lines[-1].endswith("\n"):
+                    lines[-1] += "\n"
+                lines.append(import_line)
                 f.seek(0)
                 f.writelines(lines)
                 f.truncate()
@@ -857,25 +897,40 @@ def remove_model(model):
         return
     for path in track[model]:
         remove_file(path)
+    # Remove import from base.py for Alembic autogenerate
+    base_path = f"{BASE_PATH}/db/base.py"
+    import_line = f"from app.db.models.{snake_case(model)} import {pascal_case(model)}"
+    if os.path.exists(base_path):
+        with open(base_path, "r+") as f:
+            lines = f.readlines()
+            # Remove any line that matches import_line, ignoring trailing whitespace/newlines
+            new_lines = [l for l in lines if l.strip() != import_line]
+            f.seek(0)
+            f.writelines(new_lines)
+            f.truncate()
     # Remove imports from __init__.py
     for subdir, imp in [
-        (f"{BASE_PATH}/db/models/__init__.py", f"from .{snake_case(model)} import {model}\n"),
-        (f"{BASE_PATH}/db/schemas/__init__.py", f"from .{snake_case(model)} import {model}Create, {model}Read\n"),
-        (f"{BASE_PATH}/services/__init__.py", f"from .{snake_case(model)}_service import {model}Service\n"),
+        (f"{BASE_PATH}/db/models/__init__.py", f"from .{snake_case(model)} import {pascal_case(model)}\n"),
+        (f"{BASE_PATH}/db/schemas/__init__.py", f"from .{snake_case(model)} import {pascal_case(model)}Create, {pascal_case(model)}Read\n"),
+        (f"{BASE_PATH}/services/__init__.py", f"from .{snake_case(model)}_service import {pascal_case(model)}Service\n"),
         (f"{BASE_PATH}/api/v1/endpoints/__init__.py", f"from .{snake_case(model)} import router as {snake_case(model)}_router\n"),
     ]:
         if os.path.exists(subdir):
-            with open(subdir, "r") as f:
+            with open(subdir, "r+") as f:
                 lines = f.readlines()
-            with open(subdir, "w") as f:
-                for l in lines:
-                    if l != imp:
-                        f.write(l)
+                new_lines = [l for l in lines if l != imp]
+                f.seek(0)
+                f.writelines(new_lines)
+                f.truncate()
     update_api_py(model, "remove")
     del track[model]
     save_track(track)
     print(f"Model {model} and all associated files/imports removed.")
+    # Run Alembic autogenerate and upgrade migrations
+    subprocess.run(["alembic", "revision", "--autogenerate", "-m", f"Remove model {model}"], check=False)
+    subprocess.run(["alembic", "upgrade", "head"], check=False)
 
+# ... (rest of the code remains the same)
 def list_models():
     track = load_track()
     if not track:
@@ -966,7 +1021,7 @@ SQLAlchemy model for {model}.
 from app.db.base import Base
 from sqlalchemy import Column, Integer, String, ForeignKey
 
-class {model}(Base):
+class {model.capitalize()}(Base):
     """SQLAlchemy ORM model for {model}."""
     __tablename__ = "{snake}s"
     id = Column(Integer, primary_key=True, index=True)
@@ -988,7 +1043,7 @@ Pydantic schemas for {model}.
 """
 from pydantic import BaseModel, Field
 
-class {model}Create(BaseModel):
+class {model.capitalize()}Create(BaseModel):
 '''
     for name, typ in fields:
         pytyp = "str" if typ == "str" else "int" if typ == "int" else "float" if typ == "float" else "bool" if typ == "bool" else "str"
@@ -996,10 +1051,10 @@ class {model}Create(BaseModel):
         schema_code += f"    {name}: {pytyp} = Field(..., example={repr(example)})\n"
     schema_code += f"""
 
-class {model}Read({model}Create):
+class {model.capitalize()}Read({model.capitalize()}Create):
     id: int
     class Config:
-        orm_mode = True
+        from_attributes = True
 """
     files[schema_path] = schema_code
     # Service
@@ -1008,11 +1063,11 @@ class {model}Read({model}Create):
 Service for {model} business logic and CRUD operations.
 """
 from app.services.base_service import BaseService
-from app.db.models.{snake} import {model}
+from app.db.models.{snake} import {model.capitalize()}
 
-class {model}Service(BaseService[{model}]):
+class {model.capitalize()}Service(BaseService[{model.capitalize()}]):
     def __init__(self):
-        super().__init__({model})
+        super().__init__({model.capitalize()})
 '''
     files[service_path] = service_code
     # Endpoint
@@ -1021,18 +1076,17 @@ class {model}Service(BaseService[{model}]):
 Auto-generated CRUD endpoints for {model}.
 """
 from app.api.v1.endpoints.base import get_crud_router
-from app.services.{snake}_service import {model}Service
-from app.db.schemas.{snake} import {model}Read, {model}Create
+from app.services.{snake}_service import {model.capitalize()}Service
+from app.db.schemas.{snake} import {model.capitalize()}Read, {model.capitalize()}Create
 from app.db.session import get_db
 
 router = get_crud_router(
-    service={model}Service(),
-    schema_read={model}Read,
-    schema_create={model}Create,
+    service={model.capitalize()}Service(),
+    schema_read={model.capitalize()}Read,
+    schema_create={model.capitalize()}Create,
     prefix="/{snake}s",
     get_db=get_db,
-    tags=["{model}s"],
-    crud_ops={crud}
+    tags=["{model}s"]
 )
 '''
     files[endpoint_path] = endpoint_code
@@ -1055,9 +1109,9 @@ def add_model_enhanced(model, fields, relationships, crud, examples, dry_run=Fal
     if not dry_run:
         # Update __init__.py for imports
         for subdir, imp in [
-            (f"{BASE_PATH}/db/models/__init__.py", f"from .{snake_case(model)} import {model}\n"),
-            (f"{BASE_PATH}/db/schemas/__init__.py", f"from .{snake_case(model)} import {model}Create, {model}Read\n"),
-            (f"{BASE_PATH}/services/__init__.py", f"from .{snake_case(model)}_service import {model}Service\n"),
+            (f"{BASE_PATH}/db/models/__init__.py", f"from .{snake_case(model)} import {pascal_case(model)}\n"),
+            (f"{BASE_PATH}/db/schemas/__init__.py", f"from .{snake_case(model)} import {pascal_case(model)}Create, {pascal_case(model)}Read\n"),
+            (f"{BASE_PATH}/services/__init__.py", f"from .{snake_case(model)}_service import {pascal_case(model)}Service\n"),
             (f"{BASE_PATH}/api/v1/endpoints/__init__.py", f"from .{snake_case(model)} import router as {snake_case(model)}_router\n"),
         ]:
             with open(subdir, "a") as f:
@@ -1109,7 +1163,7 @@ SQLAlchemy model for {model_name}.
 from app.db.base import Base
 from sqlalchemy import Column, Integer, String
 
-class {model_name}(Base):
+class {model_name.capitalize()}(Base):
     \"\"\"SQLAlchemy ORM model for {model_name}.\"\"\"
     __tablename__ = "{snake_case(model_name)}s"
     id = Column(Integer, primary_key=True, index=True)
@@ -1136,25 +1190,25 @@ Pydantic schemas for {model_name}.
 """
 from pydantic import BaseModel
 
-class {model_name}Create(BaseModel):
+class {model_name.capitalize()}Create(BaseModel):
     """Schema for creating a {model_name}."""
 ''')
         for name, typ in fields:
             pytyp = "str" if typ == "str" else "int" if typ == "int" else "str"
             f.write(f"    {name}: {pytyp}\n")
         f.write(f"""\n
-class {model_name}Read({model_name}Create):
+class {model_name.capitalize()}Read({model_name.capitalize()}Create):
     \"\"\"Schema for reading a {model_name}.\"\"\"
     id: int
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 """)
     # Add to __init__.py for import convenience
     init_file = f"{BASE_PATH}/db/schemas/__init__.py"
     ensure_init(os.path.dirname(init_file))
     with open(init_file, "a") as f:
-        f.write(f"from .{snake_case(model_name)} import {model_name}Create, {model_name}Read\n")
+        f.write(f"from .{snake_case(model_name)} import {model_name.capitalize()}Create, {model_name.capitalize()}Read\n")
     print(f"Created schemas: {fname}")
 
 def make_service(model_name):
@@ -1168,12 +1222,12 @@ def make_service(model_name):
 Service for {model_name} business logic and CRUD operations.
 """
 from app.services.base_service import BaseService
-from app.db.models.{snake_case(model_name)} import {model_name}
+from app.db.models.{snake_case(model_name)} import {model_name.capitalize()}
 
-class {model_name}Service(BaseService[{model_name}]):
+class {model_name.capitalize()}Service(BaseService[{model_name.capitalize()}]):
     \"\"\"Service class for {model_name}. Inherit and extend for custom business logic.\"\"\"
     def __init__(self):
-        super().__init__({model_name})
+        super().__init__({model_name.capitalize()})
 ''')
     # Add to __init__.py for import convenience
     init_file = f"{BASE_PATH}/services/__init__.py"
@@ -1193,14 +1247,14 @@ def make_endpoint(model_name):
 Auto-generated CRUD endpoints for {model_name}.
 """
 from app.api.v1.endpoints.base import get_crud_router
-from app.services.{snake_case(model_name)}_service import {model_name}Service
-from app.db.schemas.{snake_case(model_name)} import {model_name}Read, {model_name}Create
+from app.services.{snake_case(model_name)}_service import {model_name.capitalize()}Service
+from app.db.schemas.{snake_case(model_name)} import {model_name.capitalize()}Read, {model_name.capitalize()}Create
 from app.db.session import get_db
 
 router = get_crud_router(
-    service={model_name}Service(),
-    schema_read={model_name}Read,
-    schema_create={model_name}Create,
+    service={model_name.capitalize()}Service(),
+    schema_read={model_name.capitalize()}Read,
+    schema_create={model_name.capitalize()}Create,
     prefix="/{snake_case(model_name)}s",
     get_db=get_db,
     tags=["{model_name}s"]

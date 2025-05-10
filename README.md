@@ -149,6 +149,26 @@ You can run Alembic migrations in two ways:
 
 ---
 
+### Scaffold Model
+
+- Use the `scaffold_model.py` script to add or remove models, endpoints, and related files.
+
+#### Add a model
+```bash
+uv run scaffold_model.py add
+
+uv run alembic revision --autogenerate -m "add tag model" && uv run alembic upgrade head
+```
+This will scaffold the model and update your database schema to include the new table.
+
+#### Remove a model
+```bash
+uv run scaffold_model.py remove
+
+uv run alembic revision --autogenerate -m "remove tag model" && uv run alembic upgrade head
+```
+This will remove the model and update your database schema to drop the corresponding table.
+
 ## Credits
 
 - [FastAPI](https://fastapi.tiangolo.com/)
@@ -156,3 +176,5 @@ You can run Alembic migrations in two ways:
 - [uv](https://docs.astral.sh/uv/)
 - [asyncpg](https://magicstack.github.io/asyncpg/)
 - [python-dotenv](https://saurabh-kumar.com/python-dotenv/)
+
+

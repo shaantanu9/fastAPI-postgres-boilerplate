@@ -13,10 +13,10 @@ load_dotenv(os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env'))
 config = context.config
 
 # Patch: Inject DATABASE_URL from environment if not already present
-if not config.get_main_option("DATABASE_URL"):
-    db_url = os.getenv("DATABASE_URL")
-    if db_url:
-        config.set_main_option("DATABASE_URL", db_url)
+# Always set sqlalchemy.url from the DATABASE_URL environment variable if present
+_db_url = os.getenv("DATABASE_URL_WITHOUT_ASYNC")
+if _db_url:
+    config.set_main_option("sqlalchemy.url", _db_url)
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
