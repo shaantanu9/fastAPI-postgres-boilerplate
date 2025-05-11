@@ -24,4 +24,12 @@ dependencies = [
     "alembic",
     "pyjwt",
     "passlib[bcrypt]",
+    "fastmcp>=2.3.2",
+    "mcp>=1.8.0",
 ]
+[tool.poetry.dependencies]
+python = "^3.11"
+fastapi = ">=0.100,<1.0.0"
+pydantic = ">=2.0,<3.0.0"
+fastapi-mcp = "^0.3.3"
+mcp = "^1.8.0"

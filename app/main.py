@@ -13,7 +13,8 @@ Sections:
 - Health check endpoint
 - Uvicorn run block (for direct execution)
 """
-
+from sys import prefix
+from fastapi_mcp import FastApiMCP
 from fastapi import FastAPI, HTTPException
 from sqlalchemy.exc import SQLAlchemyError
 from app.core.logging import setup_logging
@@ -32,6 +33,8 @@ from app.core.exception_handlers import (
 # --- Logging and settings initialization ---
 setup_logging()  # Configure loguru and std logging
 settings = get_settings()  # Load environment variables and app config
+
+# --- FastAPI app instance ---
 
 # --- FastAPI app instance ---
 app = FastAPI(
@@ -60,6 +63,15 @@ app = FastAPI(
         # Add more tags as you add more routers
     ]
 )
+
+
+# --- Mount API router ---
+app.include_router(api_router, prefix="/api/v1")
+
+@app.get("/health")
+def health_check():
+    return {"message": "OK"}
+
 
 # --- Middleware for request/response logging ---
 from loguru import logger
@@ -162,6 +174,23 @@ async def ready():
         from fastapi import status
         return {"status": "not ready", "detail": str(e)}, status.HTTP_503_SERVICE_UNAVAILABLE
 
+# mcp.mount("mcp", app)  # Mount the MCP server at /mcp (DISABLED: cannot mount FastAPI app as MCP subserver)
+# mcp.mount()
+try:
+    from fastapi_mcp import FastApiMCP
+    mcp = FastApiMCP(app,
+    name="My API MCP",
+    describe_all_responses=True,
+    describe_full_response_schema=True,
+    # prefix="/mcp"
+    )
+    mcp.mount()
+    print("[INFO] FastAPI-MCP successfully mounted.")
+except ImportError:
+    print("[ERROR] fastapi_mcp is not installed. Install it with 'uv pip install fastapi_mcp' or 'poetry add fastapi_mcp'.")
+except Exception as e:
+    print(f"[ERROR] Failed to mount FastAPI-MCP: {e}")
+# mcp.setup_server()
 # --- Run with uvicorn if executed directly ---
 if __name__ == "__main__":
     import uvicorn
