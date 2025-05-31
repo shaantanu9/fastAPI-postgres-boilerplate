@@ -2120,7 +2120,6 @@ async def create_table_direct():
             # Update Alembic version if possible
             try:
                 # Get or create a revision
-                import uuid
                 revision_id = str(uuid.uuid4()).replace('-', '')[:12]
                 
                 # Check if alembic_version table exists
@@ -2240,8 +2239,25 @@ def apply_migration_safe(migration_file: str, model: str) -> bool:
     try:
         print("🔄 Applying migration to database...")
         
+        # Try to resolve multiple heads first
+        heads_result = subprocess.run([
+            "alembic", "heads"
+        ], capture_output=True, text=True)
+        
+        if heads_result.returncode == 0 and heads_result.stdout.strip():
+            # If multiple heads exist, try to merge or use the first one
+            heads = heads_result.stdout.strip().split('\n')
+            if len(heads) > 1:
+                print(f"⚠️  Multiple heads detected: {heads}")
+                # Use the first head
+                target_head = heads[0].split()[0] if heads[0] else "head"
+            else:
+                target_head = "head"
+        else:
+            target_head = "head"
+        
         upgrade_result = subprocess.run([
-            "alembic", "upgrade", "head"
+            "alembic", "upgrade", target_head
         ], capture_output=True, text=True, timeout=120)
         
         if upgrade_result.returncode == 0:
