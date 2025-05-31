@@ -53,12 +53,15 @@ import json
 import subprocess
 import argparse
 import yaml
-from typing import List, Dict, Any, Optional, Tuple, Union
+from typing import List, Dict, Any, Optional, Tuple, Union, TYPE_CHECKING
 from pathlib import Path
 from dataclasses import dataclass
 from enum import Enum
 import re
 from datetime import datetime
+
+if TYPE_CHECKING:
+    pass
 
 # Configuration
 BASE_PATH = "app"
@@ -2847,7 +2850,7 @@ def generate_table_creation_alembic(model: str, fields: List[FieldDefinition] = 
             constraints.append(f"sa.CheckConstraint('LENGTH({field.name}) <= {field.max_length}', name='ck_{snake_name}_{field.name}_length')")
         if field.choices:
             choices_str = "', '".join(field.choices)
-            constraints.append(f'sa.CheckConstraint("{field.name} IN (\\'\\'{choices_str}\\'\')", name="ck_{snake_name}_{field.name}_choices")')
+            constraints.append(f"sa.CheckConstraint(\"{field.name} IN ('{choices_str}')\", name=\"ck_{snake_name}_{field.name}_choices\")")
         
         # Add indexes
         if field.indexed:
