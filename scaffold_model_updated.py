@@ -327,7 +327,9 @@ class CustomBaseModel(BaseModel):
         populate_by_name=True,
         validate_assignment=True,
         arbitrary_types_allowed=True,
-        str_strip_whitespace=True
+        str_strip_whitespace=True,
+        from_attributes=True,
+        use_enum_values=True
     )
     
     def serializable_dict(self, **kwargs) -> Dict[str, Any]:
@@ -338,13 +340,6 @@ class CustomBaseModel(BaseModel):
     def to_dict(self, exclude_none: bool = True) -> Dict[str, Any]:
         """Convert to dictionary with options"""
         return self.model_dump(exclude_none=exclude_none)
-    
-    class Config:
-        """Pydantic configuration"""
-        from_attributes = True
-        use_enum_values = True
-        validate_assignment = True
-        arbitrary_types_allowed = True
 '''
 
 def generate_model_file(model: str, fields: List[FieldDefinition], config: ScaffoldConfig) -> str:
@@ -534,7 +529,7 @@ def generate_schema_file(model: str, fields: List[FieldDefinition], config: Scaf
     snake_name = snake_case(model)
     
     imports = [
-        "from pydantic import BaseModel, Field, EmailStr, validator, root_validator",
+        "from pydantic import BaseModel, Field, EmailStr, field_validator, model_validator",
         "from pydantic import AnyUrl, constr, conint, confloat, Json",
         "from typing import Optional, List, Dict, Any, Union",
         "from datetime import datetime, date",
@@ -635,7 +630,8 @@ class {pascal_name}Base(CustomBaseModel):
     content += f'''
     
     # Custom validators
-    @validator('*', pre=True)
+    @field_validator('*', mode='before')
+    @classmethod
     def empty_str_to_none(cls, v):
         """Convert empty strings to None"""
         if v == '':
@@ -647,7 +643,8 @@ class {pascal_name}Base(CustomBaseModel):
     for field in fields:
         if field.field_type == FieldType.EMAIL:
             content += f'''
-    @validator('{field.name}')
+    @field_validator('{field.name}')
+    @classmethod
     def validate_{field.name}(cls, v):
         """Validate {field.name} field"""
         if v and not '@' in v:
@@ -656,7 +653,8 @@ class {pascal_name}Base(CustomBaseModel):
 '''
         elif field.field_type == FieldType.SLUG:
             content += f'''
-    @validator('{field.name}')
+    @field_validator('{field.name}')
+    @classmethod
     def validate_{field.name}(cls, v):
         """Validate {field.name} as URL slug"""
         if v and not v.replace('-', '').replace('_', '').isalnum():
@@ -675,11 +673,11 @@ class {pascal_name}Create({pascal_name}Base):
     pass
     
     # Custom validation for create operations
-    @root_validator
-    def validate_create_fields(cls, values):
+    @model_validator(mode='after')
+    def validate_create_fields(self) -> '{pascal_name}Create':
         """Custom validation for create operations"""
         # Add any cross-field validation logic here
-        return values
+        return self
     
     class Config:
         schema_extra = {{
@@ -734,12 +732,13 @@ class {pascal_name}Update(CustomBaseModel):
 
     content += f'''
     
-    @root_validator
-    def validate_update_fields(cls, values):
+    @model_validator(mode='after')
+    def validate_update_fields(self) -> '{pascal_name}Update':
         """Ensure at least one field is provided for update"""
+        values = self.model_dump(exclude_unset=True)
         if not any(v is not None for v in values.values()):
             raise ValueError('At least one field must be provided for update')
-        return values
+        return self
 
 class {pascal_name}Read({pascal_name}Base):
     """
@@ -795,7 +794,7 @@ class {pascal_name}Filter(CustomBaseModel):
 class {pascal_name}Sort(CustomBaseModel):
     """Schema for sorting {model}s"""
     field: str = Field(..., description="Field to sort by")
-    direction: str = Field("asc", regex="^(asc|desc)$", description="Sort direction")
+    direction: str = Field("asc", pattern="^(asc|desc)$", description="Sort direction")
 
 # Bulk Operations Schemas
 class {pascal_name}BulkCreate(CustomBaseModel):

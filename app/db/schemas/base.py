@@ -28,7 +28,9 @@ class CustomBaseModel(BaseModel):
         populate_by_name=True,
         validate_assignment=True,
         arbitrary_types_allowed=True,
-        str_strip_whitespace=True
+        str_strip_whitespace=True,
+        from_attributes=True,
+        use_enum_values=True
     )
     
     def serializable_dict(self, **kwargs) -> Dict[str, Any]:
@@ -38,11 +40,4 @@ class CustomBaseModel(BaseModel):
     
     def to_dict(self, exclude_none: bool = True) -> Dict[str, Any]:
         """Convert to dictionary with options"""
-        return self.model_dump(exclude_none=exclude_none)
-    
-    class Config:
-        """Pydantic configuration"""
-        from_attributes = True
-        use_enum_values = True
-        validate_assignment = True
-        arbitrary_types_allowed = True 
+        return self.model_dump(exclude_none=exclude_none) 
