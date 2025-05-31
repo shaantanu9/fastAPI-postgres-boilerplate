@@ -1,0 +1,74 @@
+[Unit]
+Description=FastAPI Production Application
+Documentation=https://fastapi.tiangolo.com/
+After=network.target network-online.target
+Wants=network-online.target
+RequiresMountsFor=/var/www/fastapi
+
+[Service]
+# Service Type and User
+Type=notify
+User=www-data
+Group=www-data
+DynamicUser=false
+
+# Working Directory and Environment
+WorkingDirectory=/var/www/fastapi
+Environment="PATH=/var/www/fastapi/.venv/bin"
+Environment="PYTHONPATH=/var/www/fastapi"
+Environment="PYTHONUNBUFFERED=1"
+Environment="PYTHONDONTWRITEBYTECODE=1"
+
+# Runtime Environment
+EnvironmentFile=-/etc/default/fastapi
+EnvironmentFile=-/var/www/fastapi/.env
+
+# Process Management
+ExecStartPre=/bin/rm -f /run/fastapi/gunicorn.sock
+ExecStart=/var/www/fastapi/.venv/bin/gunicorn \
+    --config /var/www/fastapi/production_configs/gunicorn.conf.py \
+    --bind unix:/run/fastapi/gunicorn.sock \
+    --pid /run/fastapi/gunicorn.pid \
+    app.main:app
+
+# Graceful Shutdown Configuration
+ExecReload=/bin/kill -s HUP $MAINPID
+ExecStop=/bin/kill -s TERM $MAINPID
+TimeoutStopSec=30
+KillMode=mixed
+KillSignal=SIGTERM
+
+# Restart Configuration
+Restart=always
+RestartSec=5
+StartLimitInterval=60
+StartLimitBurst=3
+
+# Security Settings
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/www/fastapi /run/fastapi /var/log/fastapi
+RemoveIPC=true
+RestrictSUIDSGID=true
+
+# Resource Limits
+LimitNOFILE=65536
+LimitNPROC=4096
+MemoryMax=2G
+CPUQuota=200%
+
+# Runtime directories
+RuntimeDirectory=fastapi
+RuntimeDirectoryMode=0755
+LogsDirectory=fastapi
+LogsDirectoryMode=0755
+
+# Systemd Integration
+NotifyAccess=all
+WatchdogSec=30
+
+[Install]
+WantedBy=multi-user.target 

@@ -13,8 +13,9 @@ Sections:
 - Health check endpoint
 - Uvicorn run block (for direct execution)
 """
-from sys import prefix
-from fastapi_mcp import FastApiMCP
+import os
+import sys
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from sqlalchemy.exc import SQLAlchemyError
 import logging
@@ -31,11 +32,61 @@ from app.core.exception_handlers import (
     generic_exception_handler,
 )
 
+# Import production configurations if available
+try:
+    from production_configs.scripts.graceful_shutdown import (
+        setup_graceful_shutdown,
+        lifespan_with_graceful_shutdown,
+        ConnectionTrackingMiddleware
+    )
+    from production_configs.scripts.health_checks import setup_health_checks
+    PRODUCTION_FEATURES_AVAILABLE = True
+except ImportError:
+    PRODUCTION_FEATURES_AVAILABLE = False
+    logging.warning("Production features not available - running in development mode")
+
 # --- Logging and settings initialization ---
 setup_logging()  # Configure loguru and std logging
 settings = get_settings()  # Load environment variables and app config
 
-# --- FastAPI app instance ---
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Application lifespan manager for startup and shutdown events.
+    """
+    # Startup
+    logging.info("FastAPI application starting up...")
+    
+    # Import task queue and managers
+    from app.utils.task_queue import enhanced_task_queue
+    from app.utils.procrastinate_manager import init_procrastinate
+    
+    # Start enhanced task queue
+    enhanced_task_queue.start(num_workers=8)  # Start with 8 concurrent workers
+    logging.info("Enhanced task queue started with concurrent processing.")
+    
+    # Initialize Procrastinate
+    try:
+        init_procrastinate()
+        logging.info("Procrastinate PostgreSQL task queue initialized successfully.")
+    except Exception as e:
+        logging.error(f"Failed to initialize Procrastinate: {e}")
+        # Don't raise - allow app to start even if Procrastinate fails
+    
+    logging.info("Startup complete. All task processing systems initialized.")
+    
+    yield
+    
+    # Shutdown
+    logging.info("FastAPI application shutting down...")
+    
+    from app.utils.concurrent_utils import shutdown_concurrent_manager
+    
+    enhanced_task_queue.stop()
+    await shutdown_concurrent_manager()
+    logging.info("Shutdown complete. All concurrent processing stopped.")
+
 
 # --- FastAPI app instance ---
 app = FastAPI(
@@ -44,7 +95,8 @@ app = FastAPI(
     description="""
     A modular and scalable FastAPI boilerplate for rapid backend development.
     Features async SQLAlchemy, Alembic migrations, JWT authentication, role-based permissions, 
-    concurrent processing, enhanced task queues, and Procrastinate PostgreSQL-based task persistence.
+    concurrent processing, enhanced task queues, Procrastinate PostgreSQL-based task persistence,
+    response compression (gzip), HTTP/2 support, API versioning, and advanced pagination.
     """,
     contact={
         "name": "Your Team or Name",
@@ -64,18 +116,53 @@ app = FastAPI(
         {"name": "Health", "description": "Health and readiness checks for orchestration."},
         {"name": "Bulk Operations", "description": "High-performance bulk operations with concurrent processing."},
         {"name": "Procrastinate Tasks", "description": "Persistent, distributed task queue using PostgreSQL."},
-        # Add more tags as you add more routers
-    ]
+        {"name": "v1.0", "description": "API version 1.0 endpoints (current stable version)."},
+        {"name": "v2.0", "description": "API version 2.0 endpoints (latest features)."},
+        {"name": "Performance", "description": "Performance monitoring and optimization features."},
+        {"name": "Compression", "description": "Response compression and optimization."},
+    ],
+    lifespan=lifespan
 )
 
+# --- Advanced middleware and performance features ---
+try:
+    from app.core.middleware import setup_middleware
+    from app.core.versioning import version_manager, create_v1_router, create_v2_router
+    ADVANCED_FEATURES_AVAILABLE = True
+    
+    # Setup comprehensive middleware (compression, security, performance monitoring)
+    setup_middleware(app)
+    logging.info("Advanced features configured: compression, security headers, performance monitoring, rate limiting")
+except ImportError:
+    ADVANCED_FEATURES_AVAILABLE = False
+    logging.warning("Advanced middleware features not available")
 
-# --- Mount API router ---
-app.include_router(api_router, prefix="/api/v1")
-
-@app.get("/health")
-def health_check():
-    return {"message": "OK"}
-
+# --- Production middleware and configurations ---
+# Temporarily disabled due to weak reference issue with connection tracking
+# if PRODUCTION_FEATURES_AVAILABLE:
+#     # Add connection tracking middleware for graceful shutdown
+#     app.add_middleware(ConnectionTrackingMiddleware)
+#     
+#     # Setup graceful shutdown with database engine
+#     setup_graceful_shutdown(
+#         app,
+#         database_engine=engine,
+#         shutdown_timeout=30,
+#         cleanup_callbacks=[]
+#     )
+#     
+#     # Setup comprehensive health checks
+#     health_checker = setup_health_checks(
+#         app,
+#         database_engine=engine,
+#         redis_url=os.getenv("REDIS_URL", "redis://localhost:6379"),
+#         external_services=[
+#             # Add any external services you depend on
+#             # "https://api.example.com/health"
+#         ]
+#     )
+#     
+#     logging.info("Production features configured: graceful shutdown and health checks")
 
 # --- Middleware for request/response logging ---
 from loguru import logger
@@ -104,114 +191,74 @@ app.add_exception_handler(Exception, generic_exception_handler)
 # --- Mount versioned API router ---
 app.include_router(api_router, prefix="/api/v1")
 
-from app.utils.task_queue import enhanced_task_queue  # Enhanced async task queue for background jobs
-from app.utils.concurrent_utils import shutdown_concurrent_manager
-from app.utils.procrastinate_manager import init_procrastinate  # Procrastinate PostgreSQL task queue
-
-# --- Startup event: start background workers and Procrastinate ---
-@app.on_event("startup")
-async def on_startup():
-    """
-    Startup event handler:
-    - Starts the async task queue worker
-    - Initializes Procrastinate PostgreSQL task queue
-    - (Removed: table creation, handled by Alembic migrations)
-    """
-    
-    # Start enhanced task queue
-    enhanced_task_queue.start(num_workers=8)  # Start with 8 concurrent workers
-    logging.info("Enhanced task queue started with concurrent processing.")
-    
-    # Initialize Procrastinate
-    try:
-        init_procrastinate()
-        logging.info("Procrastinate PostgreSQL task queue initialized successfully.")
-    except Exception as e:
-        logging.error(f"Failed to initialize Procrastinate: {e}")
-        # Don't raise - allow app to start even if Procrastinate fails
-    
-    logging.info("Startup complete. All task processing systems initialized.")
-    # ---
-    # The following code is commented out to prevent conflicts with Alembic migrations:
-    # from sqlalchemy.ext.asyncio import AsyncEngine
-    # try:
-    #     if isinstance(engine, AsyncEngine):
-    #         async with engine.begin() as conn:
-    #             await conn.run_sync(Base.metadata.create_all)
-    #     else:
-    #         with engine.begin() as conn:
-    #             Base.metadata.create_all(bind=conn)
-    #     logging.info("Database tables created/verified.")
-    # except Exception as e:
-    #     logging.error(f"[Startup Error] Could not create tables: {e}")
-    #     raise
-
-# --- Shutdown event: stop background workers ---
-@app.on_event("shutdown")
-async def on_shutdown():
-    """
-    Shutdown event handler: stops the enhanced task queue and concurrent managers.
-    """
-    enhanced_task_queue.stop()
-    await shutdown_concurrent_manager()
-    logging.info("Shutdown complete. All concurrent processing stopped.")
-
 # --- Health check endpoints for orchestration and monitoring ---
 @app.get("/", tags=["Health"], description="Welcome message and basic service status.")
 def root():
     """
     Root endpoint for health checks and welcome message.
     """
-    return {"status": "ok", "message": "Welcome to the FastAPI Modular Boilerplate with Procrastinate!"}
+    return {"status": "ok", "message": "Welcome to the FastAPI Modular Boilerplate with Production Features!"}
 
-@app.get("/health", tags=["Health"], description="Basic liveness probe for orchestration.")
-def health():
-    """
-    Liveness probe endpoint for orchestration/monitoring (returns 200 if app is running).
-    """
-    return {"status": "healthy"}
+# Basic health endpoint (fallback if production health checks not available)
+if not PRODUCTION_FEATURES_AVAILABLE:
+    @app.get("/health", tags=["Health"], description="Basic liveness probe for orchestration.")
+    def health():
+        """
+        Liveness probe endpoint for orchestration/monitoring (returns 200 if app is running).
+        """
+        return {"status": "healthy"}
 
-@app.get("/ready", tags=["Health"], description="Readiness probe for orchestration (checks DB connection).")
-async def ready():
-    """
-    Readiness probe endpoint for orchestration/monitoring.
-    Attempts a simple DB connection to verify app is ready to serve traffic.
-    """
-    from app.db.session import get_db
-    try:
-        # Try to acquire and release a DB connection (sync or async)
-        db_gen = get_db()
-        if hasattr(db_gen, "__anext__"):  # async generator
-            db = await db_gen.__anext__()
-            if hasattr(db, "close"):
-                await db.close()
-        else:
-            db = next(db_gen)
-            if hasattr(db, "close"):
-                db.close()
-        return {"status": "ready"}
-    except Exception as e:
-        from fastapi import status
-        return {"status": "not ready", "detail": str(e)}, status.HTTP_503_SERVICE_UNAVAILABLE
+    @app.get("/ready", tags=["Health"], description="Readiness probe for orchestration (checks DB connection).")
+    async def ready():
+        """
+        Readiness probe endpoint for orchestration/monitoring.
+        Attempts a simple DB connection to verify app is ready to serve traffic.
+        """
+        from app.db.session import get_db
+        try:
+            # Try to acquire and release a DB connection
+            db_gen = get_db()
+            if hasattr(db_gen, "__anext__"):  # async generator
+                db = await db_gen.__anext__()
+                if hasattr(db, "close"):
+                    await db.close()
+            else:
+                db = next(db_gen)
+                if hasattr(db, "close"):
+                    db.close()
+            return {"status": "ready"}
+        except Exception as e:
+            from fastapi import status
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail={"status": "not ready", "detail": str(e)}
+            )
 
-# mcp.mount("mcp", app)  # Mount the MCP server at /mcp (DISABLED: cannot mount FastAPI app as MCP subserver)
-# mcp.mount()
-try:
-    from fastapi_mcp import FastApiMCP
-    mcp = FastApiMCP(app,
-    name="My API MCP",
-    describe_all_responses=True,
-    describe_full_response_schema=True,
-    # prefix="/mcp"
-    )
-    mcp.mount()
-    print("[INFO] FastAPI-MCP successfully mounted.")
-except ImportError:
-    print("[ERROR] fastapi_mcp is not installed. Install it with 'uv pip install fastapi_mcp' or 'poetry add fastapi_mcp'.")
-except Exception as e:
-    print(f"[ERROR] Failed to mount FastAPI-MCP: {e}")
-# mcp.setup_server()
-# --- Run with uvicorn if executed directly ---
+
+# --- Uvicorn run block (for direct execution) ---
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("app.main:app", host="127.0.0.1", port=8000, reload=True)
+    
+    # Configuration for development vs production
+    if os.getenv("ENVIRONMENT", "development").lower() == "production":
+        # Production configuration - should use Gunicorn instead
+        logging.warning("Running in production mode with uvicorn directly is not recommended. Use Gunicorn + Uvicorn workers.")
+        uvicorn.run(
+            "app.main:app",
+            host="0.0.0.0",
+            port=8000,
+            workers=1,
+            access_log=True,
+            use_colors=False,
+            log_config=None
+        )
+    else:
+        # Development configuration
+        uvicorn.run(
+            "app.main:app",
+            host="127.0.0.1",
+            port=8000,
+            reload=True,
+            reload_dirs=["app"],
+            access_log=True
+        )
