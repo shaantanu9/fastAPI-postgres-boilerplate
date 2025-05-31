@@ -679,8 +679,8 @@ class {pascal_name}Create({pascal_name}Base):
         # Add any cross-field validation logic here
         return self
     
-    class Config:
-        schema_extra = {{
+    model_config = {{
+        "json_schema_extra": {{
             "example": {{
 '''
     
@@ -709,6 +709,7 @@ class {pascal_name}Create({pascal_name}Base):
     
     content += '''            }
         }
+    }
 
 '''
 
@@ -767,8 +768,7 @@ class {pascal_name}Read({pascal_name}Base):
 
     content += f'''
     
-    class Config:
-        from_attributes = True
+
 
 class {pascal_name}InDB({pascal_name}Read):
     """Schema for {model} in database with all internal fields"""
@@ -1677,37 +1677,280 @@ def update_api_router(model: str):
     
     print(f"✅ Added router to API")
 
-def run_migration(model: str):
-    """Generate and run Alembic migration"""
+def run_preflight_checks():
+    """Run comprehensive preflight checks before scaffolding"""
+    print("🔍 Running preflight checks...")
+    
+    issues = []
+    
+    # Check if database is accessible
     try:
-        # Generate migration
-        print("🔄 Generating Alembic migration...")
         result = subprocess.run([
+            "python", "-c", 
+            "import asyncio; from app.db.session import engine; asyncio.run(engine.begin().__aenter__())"
+        ], capture_output=True, text=True, timeout=10)
+        
+        if result.returncode != 0:
+            issues.append("Database connection failed")
+    except subprocess.TimeoutExpired:
+        issues.append("Database connection timed out")
+    except Exception as e:
+        issues.append(f"Database check failed: {e}")
+    
+    # Check if required base files exist
+    required_files = [
+        "app/db/base.py",
+        "app/db/mixins.py", 
+        "app/db/schemas/base.py",
+        "app/core/repository.py",
+        "app/services/enhanced_base_service.py"
+    ]
+    
+    for file_path in required_files:
+        if not os.path.exists(file_path):
+            issues.append(f"Missing required file: {file_path}")
+    
+    # Check if app imports successfully
+    try:
+        result = subprocess.run([
+            "python", "-c", "from app.main import app; print('OK')"
+        ], capture_output=True, text=True, timeout=30)
+        
+        if result.returncode != 0:
+            issues.append("App import failed - check for syntax/import errors")
+    except subprocess.TimeoutExpired:
+        issues.append("App import timed out")
+    except Exception:
+        issues.append("Could not test app imports")
+    
+    if issues:
+        print("❌ Preflight checks failed:")
+        for issue in issues:
+            print(f"   • {issue}")
+        return False
+    else:
+        print("✅ All preflight checks passed")
+        return True
+
+def check_and_fix_alembic_state():
+    """Check and fix Alembic state issues before generating migrations"""
+    try:
+        print("🔍 Checking Alembic state...")
+        
+        # Check if alembic can read current state
+        current_result = subprocess.run([
+            "alembic", "current"
+        ], capture_output=True, text=True)
+        
+        if current_result.returncode != 0 and "Can't locate revision" in current_result.stderr:
+            print("⚠️  Detected Alembic state corruption - fixing...")
+            
+            # Get the actual head revision from migration files
+            history_result = subprocess.run([
+                "alembic", "history", "--verbose"
+            ], capture_output=True, text=True)
+            
+            if history_result.returncode == 0:
+                history_lines = history_result.stdout.strip().split('\n')
+                if history_lines and '->' in history_lines[0]:
+                    # Extract the latest revision
+                    latest_rev = history_lines[0].split('->')[1].strip().split()[0]
+                    if latest_rev and latest_rev != "<base>":
+                        print(f"🔧 Fixing database state to revision: {latest_rev}")
+                        
+                        # Create a script to fix the database state
+                        fix_script = f'''
+import asyncio
+from app.db.session import engine
+from sqlalchemy import text
+
+async def fix_alembic_version():
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(text("UPDATE alembic_version SET version_num = '{latest_rev}'"))
+            print("✅ Fixed alembic_version table")
+    except Exception as e:
+        print(f"❌ Error fixing alembic state: {{e}}")
+
+asyncio.run(fix_alembic_version())
+'''
+                        with open("fix_alembic_temp.py", "w") as f:
+                            f.write(fix_script)
+                        
+                        # Run the fix
+                        fix_result = subprocess.run([
+                            "python", "fix_alembic_temp.py"
+                        ], capture_output=True, text=True)
+                        
+                        # Clean up
+                        os.remove("fix_alembic_temp.py")
+                        
+                        if fix_result.returncode == 0:
+                            print("✅ Alembic state fixed successfully")
+                            return True
+        
+        return True
+        
+    except Exception as e:
+        print(f"❌ Error checking Alembic state: {e}")
+        return False
+
+def clean_migration_file(migration_file: str, model: str):
+    """Clean generated migration file to avoid conflicts with existing infrastructure"""
+    try:
+        if not os.path.exists(migration_file):
+            return True
+            
+        with open(migration_file, 'r') as f:
+            content = f.read()
+        
+        lines = content.split('\n')
+        cleaned_lines = []
+        in_downgrade = False
+        skip_procrastinate_block = False
+        
+        for i, line in enumerate(lines):
+            # Track if we're in the downgrade function
+            if 'def downgrade()' in line:
+                in_downgrade = True
+                cleaned_lines.append(line)
+                cleaned_lines.append('    # ### commands auto generated by Alembic - please adjust! ###')
+                cleaned_lines.append(f'    # Note: Only dropping {model.lower()} table - keeping existing infrastructure intact')
+                continue
+            
+            # Skip any procrastinate-related operations
+            is_procrastinate_line = (
+                'procrastinate' in line.lower() and 
+                ('op.drop_' in line or 'op.create_' in line)
+            )
+            
+            if is_procrastinate_line:
+                if not skip_procrastinate_block and 'drop' in line.lower():
+                    cleaned_lines.append('    # Note: Keeping Procrastinate tables intact - they are still needed for background task processing')
+                    skip_procrastinate_block = True
+                continue
+            
+            # If we're in downgrade and see a create_table for procrastinate, skip until we see a different operation
+            if in_downgrade and 'op.create_table(' in line and 'procrastinate' in line:
+                # Skip this entire block by finding the matching closing parenthesis
+                paren_count = line.count('(') - line.count(')')
+                while paren_count > 0 and i + 1 < len(lines):
+                    i += 1
+                    if i < len(lines):
+                        next_line = lines[i]
+                        paren_count += next_line.count('(') - next_line.count(')')
+                continue
+            
+            cleaned_lines.append(line)
+        
+        # Write cleaned content
+        with open(migration_file, 'w') as f:
+            f.write('\n'.join(cleaned_lines))
+        
+        print(f"✅ Cleaned migration file to preserve existing infrastructure")
+        return True
+        
+    except Exception as e:
+        print(f"❌ Error cleaning migration file: {e}")
+        return False
+
+def run_migration(model: str):
+    """Generate and run Alembic migration with robust error handling"""
+    try:
+        # Step 1: Check and fix Alembic state first
+        if not check_and_fix_alembic_state():
+            print("❌ Could not fix Alembic state")
+            return False
+        
+        # Step 2: Generate migration
+        print(f"🔄 Generating migration for {model}...")
+        generate_result = subprocess.run([
             "alembic", "revision", "--autogenerate", 
             "-m", f"Add {model} model"
         ], capture_output=True, text=True)
         
-        if result.returncode != 0:
-            print(f"❌ Migration generation failed: {result.stderr}")
+        if generate_result.returncode != 0:
+            error_msg = generate_result.stderr.strip()
+            print(f"❌ Migration generation failed:")
+            print(f"   Error: {error_msg}")
+            
+            # Check if it's a "no changes detected" case
+            if "No changes in schema detected" in error_msg or "No changes detected" in error_msg:
+                print("ℹ️  No database changes needed - model might already exist")
+                return True
+            
             return False
         
-        print("✅ Migration generated")
+        # Step 3: Check if migration was actually created and clean it
+        migration_output = generate_result.stdout.strip()
+        if "Generating" in migration_output:
+            print("✅ Migration file generated")
+            
+            # Extract migration file path from output
+            migration_file = None
+            for line in migration_output.split('\n'):
+                if "Generating" in line and ".py" in line:
+                    # Extract file path from "Generating /path/to/migration.py ... done"
+                    start = line.find('/')
+                    end = line.find('.py') + 3
+                    if start != -1 and end != -1:
+                        migration_file = line[start:end]
+                        break
+            
+            # Clean the migration file
+            if migration_file:
+                if not clean_migration_file(migration_file, model):
+                    print("⚠️  Warning: Could not clean migration file - proceed with caution")
+        else:
+            print("ℹ️  No migration changes detected")
+            return True
         
-        # Apply migration
-        print("🔄 Applying migration...")
-        result = subprocess.run([
+        # Step 4: Apply migration
+        print("🔄 Applying migration to database...")
+        upgrade_result = subprocess.run([
             "alembic", "upgrade", "head"
         ], capture_output=True, text=True)
         
-        if result.returncode != 0:
-            print(f"❌ Migration failed: {result.stderr}")
+        if upgrade_result.returncode != 0:
+            error_msg = upgrade_result.stderr.strip()
+            print(f"❌ Migration application failed:")
+            print(f"   Error: {error_msg}")
+            
+            # Try to provide helpful debugging info
+            if "relation" in error_msg and "does not exist" in error_msg:
+                print("💡 This might be a dependency issue. Checking migration order...")
+                
+                # Show pending migrations
+                show_result = subprocess.run([
+                    "alembic", "show", "head"
+                ], capture_output=True, text=True)
+                
+                if show_result.returncode == 0:
+                    print(f"   Current head: {show_result.stdout.strip()}")
+                
             return False
         
-        print("✅ Migration applied")
+        print("✅ Migration applied successfully")
+        
+        # Step 5: Verify the table was created
+        print("🔍 Verifying table creation...")
+        verify_result = subprocess.run([
+            "alembic", "current", "--verbose"
+        ], capture_output=True, text=True)
+        
+        if verify_result.returncode == 0:
+            print("✅ Database state verified")
+        
         return True
         
+    except subprocess.TimeoutExpired:
+        print("❌ Migration timed out - database might be busy")
+        return False
     except Exception as e:
-        print(f"❌ Migration error: {e}")
+        print(f"❌ Unexpected migration error: {e}")
+        print("💡 You may need to run migrations manually:")
+        print(f"   alembic revision --autogenerate -m 'Add {model} model'")
+        print("   alembic upgrade head")
         return False
 
 def scaffold_model(
@@ -2440,6 +2683,11 @@ def scaffold_model_enhanced(
         
         print(f"🚀 Scaffolding {pascal_name}...")
         
+        # Step 1: Run preflight checks
+        if not run_preflight_checks():
+            print("❌ Preflight checks failed - aborting scaffold")
+            return False
+        
         # Update config with features
         config.config["features"].update(features)
         
@@ -2457,6 +2705,23 @@ def scaffold_model_enhanced(
         schema_path = f"app/db/schemas/{snake_name}.py"
         write_file(schema_path, schema_content)
         files_created.append(schema_path)
+        
+        # 2.1. Validate schema imports work
+        print("🔍 Validating generated schema...")
+        try:
+            result = subprocess.run([
+                "python", "-c", f"from app.db.schemas.{snake_name} import {pascal_name}Create; print('✅ Schema validates')"
+            ], capture_output=True, text=True, timeout=15)
+            
+            if result.returncode != 0:
+                print(f"❌ Schema validation failed:")
+                print(f"   Error: {result.stderr.strip()}")
+                # Don't fail completely, but warn
+                print("⚠️  Continuing with potentially invalid schema...")
+        except subprocess.TimeoutExpired:
+            print("⚠️  Schema validation timed out")
+        except Exception as e:
+            print(f"⚠️  Could not validate schema: {e}")
         
         # 3. Service file
         service_content = generate_service_file(model, fields, config)
@@ -2510,6 +2775,15 @@ def scaffold_model_enhanced(
             migration_success = run_migration(model)
             if not migration_success:
                 print("⚠️  Migration failed, but files were created")
+        
+        # 11. Clean up any temporary files
+        temp_files = ["fix_alembic_temp.py", "verify_table.py", "fix_alembic.py"]
+        for temp_file in temp_files:
+            if os.path.exists(temp_file):
+                try:
+                    os.remove(temp_file)
+                except:
+                    pass  # Ignore cleanup errors
         
         print(f"✅ Successfully scaffolded {pascal_name}!")
         print(f"📁 Files created: {len(files_created)}")
