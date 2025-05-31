@@ -219,8 +219,8 @@ def ensure_init_files(path: str):
                 with open(init_file, "w") as f:
                     f.write('"""Package initialization"""\n')
 
-def write_file(path: str, content: str, backup: bool = True):
-    """Write content to file with backup option"""
+def write_file(path: str, content: str, backup: bool = True, tracker: Optional['ScaffoldTracker'] = None):
+    """Write content to file with backup option and tracking"""
     if backup and os.path.exists(path):
         backup_path = f"{path}.backup"
         os.rename(path, backup_path)
@@ -232,6 +232,10 @@ def write_file(path: str, content: str, backup: bool = True):
     with open(path, "w") as f:
         f.write(content)
     print(f"✅ Created: {path}")
+    
+    # Track the file creation
+    if tracker:
+        tracker.track_file_created(path, content)
 
 def load_tracking():
     """Load the tracking file"""
@@ -244,6 +248,115 @@ def save_tracking(data: Dict[str, Any]):
     """Save the tracking file"""
     with open(TRACK_FILE, "w") as f:
         json.dump(data, f, indent=2)
+
+class ScaffoldTracker:
+    """
+    Comprehensive tracking system for scaffold operations.
+    Tracks all files created, modified, and database changes like a VCS.
+    """
+    
+    def __init__(self, model: str):
+        self.model = model
+        self.snake_name = snake_case(model)
+        self.pascal_name = pascal_case(model)
+        self.changes = {
+            "model": model,
+            "timestamp": datetime.now().isoformat(),
+            "files_created": [],
+            "files_modified": [],
+            "imports_added": [],
+            "migrations_created": [],
+            "database_changes": [],
+            "backup_files": {},
+            "rollback_info": {}
+        }
+    
+    def track_file_created(self, file_path: str, content: str = None):
+        """Track a file that was created"""
+        self.changes["files_created"].append({
+            "path": file_path,
+            "size": len(content) if content else 0,
+            "created_at": datetime.now().isoformat()
+        })
+        print(f"📝 Tracked creation: {file_path}")
+    
+    def track_file_modified(self, file_path: str, original_content: str, new_content: str, changes_made: List[str]):
+        """Track a file that was modified"""
+        # Create backup
+        backup_path = f"{file_path}.scaffold_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        with open(backup_path, "w") as f:
+            f.write(original_content)
+        
+        self.changes["files_modified"].append({
+            "path": file_path,
+            "backup_path": backup_path,
+            "changes": changes_made,
+            "modified_at": datetime.now().isoformat()
+        })
+        self.changes["backup_files"][file_path] = backup_path
+        print(f"📝 Tracked modification: {file_path} (backup: {backup_path})")
+    
+    def track_import_added(self, file_path: str, import_line: str, line_number: int = None):
+        """Track an import that was added to a file"""
+        self.changes["imports_added"].append({
+            "file": file_path,
+            "import": import_line,
+            "line_number": line_number,
+            "added_at": datetime.now().isoformat()
+        })
+        print(f"📝 Tracked import: {import_line} -> {file_path}")
+    
+    def track_migration_created(self, migration_file: str, migration_id: str):
+        """Track a migration that was created"""
+        self.changes["migrations_created"].append({
+            "file": migration_file,
+            "migration_id": migration_id,
+            "created_at": datetime.now().isoformat()
+        })
+        print(f"📝 Tracked migration: {migration_file}")
+    
+    def track_database_change(self, operation: str, details: Dict[str, Any]):
+        """Track database changes"""
+        self.changes["database_changes"].append({
+            "operation": operation,
+            "details": details,
+            "timestamp": datetime.now().isoformat()
+        })
+        print(f"📝 Tracked DB change: {operation}")
+    
+    def save_tracking_info(self):
+        """Save the tracking information"""
+        tracking = load_tracking()
+        tracking[self.model] = self.changes
+        save_tracking(tracking)
+        
+        # Also save individual model tracking file for detailed operations
+        model_track_file = f".scaffold_track_{self.snake_name}.json"
+        with open(model_track_file, "w") as f:
+            json.dump(self.changes, f, indent=2)
+        
+        print(f"💾 Saved tracking info for {self.model}")
+    
+    @classmethod
+    def load_model_tracking(cls, model: str) -> Optional[Dict[str, Any]]:
+        """Load tracking information for a specific model"""
+        snake_name = snake_case(model)
+        model_track_file = f".scaffold_track_{snake_name}.json"
+        
+        if os.path.exists(model_track_file):
+            with open(model_track_file, "r") as f:
+                return json.load(f)
+        
+        # Fallback to main tracking file
+        tracking = load_tracking()
+        return tracking.get(model)
+    
+    def cleanup_tracking_files(self):
+        """Clean up tracking files after successful removal"""
+        model_track_file = f".scaffold_track_{self.snake_name}.json"
+        if os.path.exists(model_track_file):
+            os.remove(model_track_file)
+            print(f"🗑️  Removed tracking file: {model_track_file}")
 
 def parse_fields(field_specs: List[str]) -> List[FieldDefinition]:
     """Parse field specifications into FieldDefinition objects"""
@@ -1609,7 +1722,7 @@ class Test{pascal_name}Service:
     
     return content
 
-def update_base_py(model: str):
+def update_base_py(model: str, tracker: Optional['ScaffoldTracker'] = None):
     """Add model import to base.py for Alembic"""
     base_path = f"{BASE_PATH}/db/base.py"
     snake_name = snake_case(model)
@@ -1621,21 +1734,31 @@ def update_base_py(model: str):
         return
     
     with open(base_path, "r") as f:
-        content = f.read()
+        original_content = f.read()
     
-    if import_line in content:
+    if import_line in original_content:
         print(f"✅ Import already exists in base.py")
         return
     
     # Add import at the end
-    content += f"\n{import_line}\n"
+    new_content = original_content + f"\n{import_line}\n"
     
     with open(base_path, "w") as f:
-        f.write(content)
+        f.write(new_content)
     
     print(f"✅ Added import to base.py")
+    
+    # Track the modification
+    if tracker:
+        tracker.track_file_modified(
+            base_path, 
+            original_content, 
+            new_content, 
+            [f"Added import: {import_line}"]
+        )
+        tracker.track_import_added(base_path, import_line)
 
-def update_api_router(model: str):
+def update_api_router(model: str, tracker: Optional['ScaffoldTracker'] = None):
     """Add router to API"""
     snake_name = snake_case(model)
     pascal_name = pascal_case(model)
@@ -1645,7 +1768,8 @@ def update_api_router(model: str):
         return
     
     with open(API_FILE, "r") as f:
-        lines = f.readlines()
+        original_content = f.read()
+        lines = original_content.splitlines(keepends=True)
     
     import_line = f"from app.api.v1.endpoints import {snake_name}\n"
     include_line = f'api_router.include_router({snake_name}.router, tags=["{pascal_name}s"])\n'
@@ -1655,6 +1779,8 @@ def update_api_router(model: str):
         print(f"✅ Router already registered")
         return
     
+    changes_made = []
+    
     # Find where to insert import (after last import)
     import_index = -1
     for i, line in enumerate(lines):
@@ -1663,20 +1789,31 @@ def update_api_router(model: str):
     
     if import_index >= 0:
         lines.insert(import_index + 1, import_line)
+        changes_made.append(f"Added import at line {import_index + 2}: {import_line.strip()}")
     else:
         # Add after first import
         for i, line in enumerate(lines):
             if line.strip().startswith("from"):
                 lines.insert(i + 1, import_line)
+                changes_made.append(f"Added import at line {i + 2}: {import_line.strip()}")
                 break
     
     # Add include_router at the end
     lines.append(include_line)
+    changes_made.append(f"Added router include: {include_line.strip()}")
+    
+    new_content = "".join(lines)
     
     with open(API_FILE, "w") as f:
-        f.writelines(lines)
+        f.write(new_content)
     
     print(f"✅ Added router to API")
+    
+    # Track the modification
+    if tracker:
+        tracker.track_file_modified(API_FILE, original_content, new_content, changes_made)
+        tracker.track_import_added(API_FILE, import_line)
+        tracker.track_import_added(API_FILE, include_line)
 
 def run_preflight_checks():
     """Run comprehensive preflight checks before scaffolding"""
@@ -2002,27 +2139,27 @@ def find_actual_head_revision(versions_dir: str, migration_files: List[str]) -> 
         print(f"❌ Error finding head revision: {e}")
         return None
 
-def run_migration(model: str, fields: List[FieldDefinition] = None):
+def run_migration(model: str, fields: List[FieldDefinition] = None, tracker: Optional['ScaffoldTracker'] = None):
     """Ultra-robust migration system with comprehensive fallback mechanisms"""
     print(f"🔄 Starting comprehensive migration process for {model}...")
     
     # Try standard migration approach first
-    migration_success = attempt_standard_migration(model)
+    migration_success = attempt_standard_migration(model, tracker)
     if migration_success:
         return True
     
     # If standard migration fails, try fallback approaches
     print("🔄 Standard migration failed - trying fallback approaches...")
     
-    fallback_success = attempt_fallback_migration(model, fields)
+    fallback_success = attempt_fallback_migration(model, fields, tracker)
     if fallback_success:
         return True
     
     # If all migration approaches fail, create table directly
     print("🔄 All migration approaches failed - creating table directly...")
-    return attempt_direct_table_creation(model, fields)
+    return attempt_direct_table_creation(model, fields, tracker)
 
-def attempt_standard_migration(model: str) -> bool:
+def attempt_standard_migration(model: str, tracker: Optional['ScaffoldTracker'] = None) -> bool:
     """Attempt standard Alembic migration with recovery mechanisms"""
     max_retries = 3
     for attempt in range(max_retries):
@@ -2049,14 +2186,14 @@ def attempt_standard_migration(model: str) -> bool:
                 return True
             
             # Step 4: Generate migration
-            migration_file = generate_migration_safe(model)
+            migration_file = generate_migration_safe(model, tracker)
             if not migration_file:
                 if attempt == max_retries - 1:
                     break
                 continue
             
             # Step 5: Apply migration
-            if apply_migration_safe(migration_file, model):
+            if apply_migration_safe(migration_file, model, tracker):
                 print("✅ Standard migration completed successfully")
                 return True
             
@@ -2068,7 +2205,7 @@ def attempt_standard_migration(model: str) -> bool:
     print("❌ Standard migration failed after all attempts")
     return False
 
-def attempt_fallback_migration(model: str, fields: List[FieldDefinition] = None) -> bool:
+def attempt_fallback_migration(model: str, fields: List[FieldDefinition] = None, tracker: Optional['ScaffoldTracker'] = None) -> bool:
     """Fallback migration approaches when standard migration fails"""
     print("🔧 Attempting fallback migration strategies...")
     
@@ -2086,7 +2223,7 @@ def attempt_fallback_migration(model: str, fields: List[FieldDefinition] = None)
     
     return False
 
-def attempt_direct_table_creation(model: str, fields: List[FieldDefinition] = None) -> bool:
+def attempt_direct_table_creation(model: str, fields: List[FieldDefinition] = None, tracker: Optional['ScaffoldTracker'] = None) -> bool:
     """Create table directly using SQLAlchemy without Alembic"""
     print("🏗️  Creating table directly using SQLAlchemy...")
     
@@ -2096,6 +2233,10 @@ def attempt_direct_table_creation(model: str, fields: List[FieldDefinition] = No
         
         # Generate table creation SQL
         table_sql = generate_table_creation_sql(model, fields)
+        
+        # Generate a revision ID first
+        import uuid
+        revision_id = str(uuid.uuid4()).replace('-', '')[:12]
         
         # Execute table creation
         create_table_script = f'''
@@ -2119,14 +2260,14 @@ async def create_table_direct():
             
             # Update Alembic version if possible
             try:
-                # Get or create a revision
-                revision_id = str(uuid.uuid4()).replace('-', '')[:12]
+                # Use predefined revision ID
+                revision_id = "{revision_id}"
                 
                 # Check if alembic_version table exists
                 alembic_exists = await conn.execute(text("SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'alembic_version');"))
                 if alembic_exists.scalar():
                     await conn.execute(text(f"DELETE FROM alembic_version;"))
-                    await conn.execute(text(f"INSERT INTO alembic_version (version_num) VALUES ('{revision_id}');"))
+                    await conn.execute(text(f"INSERT INTO alembic_version (version_num) VALUES ('{{revision_id}}');"))
                     print("✅ Updated Alembic version table")
             except Exception as e:
                 print(f"⚠️  Could not update Alembic version: {{e}}")
@@ -2191,7 +2332,7 @@ exit(0 if result else 1)
     except Exception:
         return False
 
-def generate_migration_safe(model: str) -> Optional[str]:
+def generate_migration_safe(model: str, tracker: Optional['ScaffoldTracker'] = None) -> Optional[str]:
     """Generate migration with comprehensive error handling"""
     try:
         print(f"🔄 Generating migration for {model}...")
@@ -2226,6 +2367,14 @@ def generate_migration_safe(model: str) -> Optional[str]:
                             if os.path.exists(migration_file):
                                 clean_migration_file_comprehensive(migration_file, model)
                             
+                            # Track the migration
+                            if tracker:
+                                # Extract migration ID from filename
+                                import re
+                                migration_id_match = re.search(r'([a-f0-9]{12})_', migration_file)
+                                migration_id = migration_id_match.group(1) if migration_id_match else "unknown"
+                                tracker.track_migration_created(migration_file, migration_id)
+                            
                             return migration_file
         
         return None
@@ -2234,7 +2383,7 @@ def generate_migration_safe(model: str) -> Optional[str]:
         print(f"❌ Error generating migration: {e}")
         return None
 
-def apply_migration_safe(migration_file: str, model: str) -> bool:
+def apply_migration_safe(migration_file: str, model: str, tracker: Optional['ScaffoldTracker'] = None) -> bool:
     """Apply migration with fallback cleaning"""
     try:
         print("🔄 Applying migration to database...")
@@ -2262,6 +2411,14 @@ def apply_migration_safe(migration_file: str, model: str) -> bool:
         
         if upgrade_result.returncode == 0:
             print("✅ Migration applied successfully")
+            
+            # Track database changes
+            if tracker:
+                tracker.track_database_change("table_created", {
+                    "table_name": f"{snake_case(model)}s",
+                    "migration_file": migration_file
+                })
+            
             return verify_table_exists(model)
         
         error_msg = upgrade_result.stderr.strip()
@@ -2613,24 +2770,24 @@ def generate_table_creation_alembic(model: str, fields: List[FieldDefinition] = 
     
     # Default Product fields for backward compatibility
     if fields is None:
-        return f'''op.create_table('{table_name}',
-            sa.Column('id', sa.Integer(), nullable=False),
-            sa.Column('name', sa.String(length=100), nullable=False),
-            sa.Column('price', sa.Numeric(), nullable=False),
-            sa.Column('description', sa.Text(), nullable=True),
-            sa.Column('category', sa.String(), nullable=False),
-            sa.Column('created_at', sa.DateTime(), nullable=True),
-            sa.Column('updated_at', sa.DateTime(), nullable=True),
-            sa.Column('created_by', sa.Integer(), nullable=True),
-            sa.Column('updated_by', sa.Integer(), nullable=True),
-            sa.Column('deleted_at', sa.DateTime(), nullable=True),
-            sa.Column('is_deleted', sa.Boolean(), nullable=True),
-            sa.CheckConstraint('LENGTH(name) <= 100', name='ck_{snake_name}_name_length'),
-            sa.CheckConstraint("category IN ('electronics', 'books', 'clothing')", name='ck_{snake_name}_category_choices'),
-            sa.PrimaryKeyConstraint('id')
-        )
-        op.create_index(op.f('ix_{table_name}_id'), '{table_name}', ['id'], unique=False)
-        op.create_index('ix_{snake_name}_search', '{table_name}', ['name', 'description', 'category'], unique=False)'''
+        return f"""op.create_table('{table_name}',
+        sa.Column('id', sa.Integer(), nullable=False),
+        sa.Column('name', sa.String(length=100), nullable=False),
+        sa.Column('price', sa.Numeric(), nullable=False),
+        sa.Column('description', sa.Text(), nullable=True),
+        sa.Column('category', sa.String(), nullable=False),
+        sa.Column('created_at', sa.DateTime(), nullable=True),
+        sa.Column('updated_at', sa.DateTime(), nullable=True),
+        sa.Column('created_by', sa.Integer(), nullable=True),
+        sa.Column('updated_by', sa.Integer(), nullable=True),
+        sa.Column('deleted_at', sa.DateTime(), nullable=True),
+        sa.Column('is_deleted', sa.Boolean(), nullable=True),
+        sa.CheckConstraint('LENGTH(name) <= 100', name='ck_{snake_name}_name_length'),
+        sa.CheckConstraint("category IN ('electronics', 'books', 'clothing')", name='ck_{snake_name}_category_choices'),
+        sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_{table_name}_id'), '{table_name}', ['id'], unique=False)
+    op.create_index('ix_{snake_name}_search', '{table_name}', ['name', 'description', 'category'], unique=False)"""
     
     # Generate dynamic Alembic commands
     columns = ["sa.Column('id', sa.Integer(), nullable=False)"]
@@ -2690,7 +2847,7 @@ def generate_table_creation_alembic(model: str, fields: List[FieldDefinition] = 
             constraints.append(f"sa.CheckConstraint('LENGTH({field.name}) <= {field.max_length}', name='ck_{snake_name}_{field.name}_length')")
         if field.choices:
             choices_str = "', '".join(field.choices)
-            constraints.append(f"sa.CheckConstraint(\"{field.name} IN ('{choices_str}')\", name='ck_{snake_name}_{field.name}_choices')")
+            constraints.append(f'sa.CheckConstraint("{field.name} IN (\\'\\'{choices_str}\\'\')", name="ck_{snake_name}_{field.name}_choices")')
         
         # Add indexes
         if field.indexed:
@@ -2706,11 +2863,21 @@ def generate_table_creation_alembic(model: str, fields: List[FieldDefinition] = 
         "sa.Column('is_deleted', sa.Boolean(), nullable=True)"
     ])
     
-    # Build the Alembic command
+    # Build the Alembic command - fix the structure to avoid syntax errors
     alembic_lines = [f"op.create_table('{table_name}',"]
-    alembic_lines.extend([f"        {col}," for col in columns])
-    alembic_lines.extend([f"        {constraint}," for constraint in constraints])
+    
+    # Add all columns
+    for col in columns:
+        alembic_lines.append(f"        {col},")
+    
+    # Add all constraints
+    for constraint in constraints:
+        alembic_lines.append(f"        {constraint},")
+    
+    # Add primary key constraint (always last)
     alembic_lines.append("        sa.PrimaryKeyConstraint('id')")
+    
+    # Add the closing parenthesis
     alembic_lines.append("    )")
     
     # Add indexes
@@ -2778,20 +2945,50 @@ def clean_migration_file_comprehensive(migration_file: str, model: str) -> bool:
         
         lines = content.split('\n')
         cleaned_lines = []
-        skip_until_end = False
+        in_downgrade_function = False
+        skip_malformed_statements = False
+        brace_depth = 0
         
-        for line in lines:
+        for i, line in enumerate(lines):
+            # Track if we're in the downgrade function
+            if line.strip().startswith('def downgrade()'):
+                in_downgrade_function = True
+                cleaned_lines.append(line)
+                continue
+            
+            # If we're in downgrade and hit another function, we're done with downgrade
+            if in_downgrade_function and line.strip().startswith('def ') and 'downgrade' not in line:
+                in_downgrade_function = False
+                skip_malformed_statements = False
+                
+            # Handle downgrade function content
+            if in_downgrade_function:
+                # Skip malformed sa.Column statements that aren't in op.create_table calls
+                if 'sa.Column(' in line and not any(op in line for op in ['op.create_table', 'op.add_column']):
+                    if not skip_malformed_statements:
+                        cleaned_lines.append('    # Note: Removing malformed column statements')
+                        skip_malformed_statements = True
+                    continue
+                
+                # Skip foreign key constraints and other malformed statements
+                if any(stmt in line for stmt in ['sa.ForeignKeyConstraint', 'sa.CheckConstraint', 'sa.PrimaryKeyConstraint', 'sa.UniqueConstraint']) and not any(op in line for op in ['op.create_table', 'op.add_constraint']):
+                    continue
+                    
+                # Skip PostgreSQL-specific statements that are malformed
+                if 'postgresql_ignore_search_path=False' in line and 'op.create_table' not in line:
+                    continue
+            
             # Skip any operations on existing infrastructure
             if any(infra_name in line.lower() for infra_name in ['procrastinate', 'alembic_version']):
                 if 'op.drop_' in line or 'op.create_' in line:
-                    if not skip_until_end:
+                    if not skip_malformed_statements:
                         cleaned_lines.append('    # Note: Preserving existing infrastructure tables')
-                        skip_until_end = True
+                        skip_malformed_statements = True
                     continue
             
             # Reset skip flag when we encounter the model's operations
             if model.lower() in line.lower() and ('CREATE TABLE' in line.upper() or 'op.create_table' in line):
-                skip_until_end = False
+                skip_malformed_statements = False
             
             cleaned_lines.append(line)
         
@@ -3390,6 +3587,10 @@ def main():
     remove_parser.add_argument('model', help='Model name to remove')
     remove_parser.add_argument('--cascade', action='store_true', help='Remove related files')
     remove_parser.add_argument('--force', action='store_true', help='Force removal without confirmation')
+    remove_parser.add_argument('--clean-database', action='store_true', 
+                               help='🗃️ Also drop database table and remove migrations')
+    remove_parser.add_argument('--show-tracking', action='store_true',
+                               help='📋 Show detailed tracking information before removal')
     
     # Update command
     update_parser = subparsers.add_parser('update', help='🔄 Update an existing model')
@@ -3463,7 +3664,15 @@ def main():
         list_models_enhanced(detailed=args.detailed, json_output=args.json)
         
     elif args.command == 'remove':
-        remove_model_enhanced(args.model, cascade=args.cascade, force=args.force)
+        if args.show_tracking:
+            show_model_tracking(args.model)
+        else:
+            remove_model_enhanced(
+                args.model, 
+                cascade=args.cascade, 
+                force=args.force,
+                clean_database=args.clean_database
+            )
         
     elif args.command == 'update':
         update_model(args.model, args)
@@ -3616,6 +3825,10 @@ def scaffold_model_enhanced(
         
         print(f"🚀 Scaffolding {pascal_name}...")
         
+        # Initialize comprehensive tracking
+        tracker = ScaffoldTracker(model)
+        print(f"📝 Initialized tracking for {model}")
+        
         # Step 1: Run preflight checks
         if not run_preflight_checks():
             print("❌ Preflight checks failed - aborting scaffold")
@@ -3630,13 +3843,13 @@ def scaffold_model_enhanced(
         # 1. Model file
         model_content = generate_model_file(model, fields, config)
         model_path = f"app/db/models/{snake_name}.py"
-        write_file(model_path, model_content)
+        write_file(model_path, model_content, tracker=tracker)
         files_created.append(model_path)
         
         # 2. Schema file
         schema_content = generate_schema_file(model, fields, config)
         schema_path = f"app/db/schemas/{snake_name}.py"
-        write_file(schema_path, schema_content)
+        write_file(schema_path, schema_content, tracker=tracker)
         files_created.append(schema_path)
         
         # 2.1. Validate schema imports work
@@ -3659,25 +3872,25 @@ def scaffold_model_enhanced(
         # 3. Service file
         service_content = generate_service_file(model, fields, config)
         service_path = f"app/services/{snake_name}_service.py"
-        write_file(service_path, service_content)
+        write_file(service_path, service_content, tracker=tracker)
         files_created.append(service_path)
         
         # 4. Endpoint file
         endpoint_content = generate_endpoint_file(model, features.get('bulk_operations', False))
         endpoint_path = f"app/api/v1/endpoints/{snake_name}.py"
-        write_file(endpoint_path, endpoint_content)
+        write_file(endpoint_path, endpoint_content, tracker=tracker)
         files_created.append(endpoint_path)
         
         # 5. Dependencies file
         deps_content = generate_dependencies_file(model, fields, config)
         deps_path = f"app/dependencies/{snake_name}.py"
-        write_file(deps_path, deps_content)
+        write_file(deps_path, deps_content, tracker=tracker)
         files_created.append(deps_path)
         
         # 6. Exceptions file
         exc_content = generate_exceptions_file(model)
         exc_path = f"app/exceptions/{snake_name}.py"
-        write_file(exc_path, exc_content)
+        write_file(exc_path, exc_content, tracker=tracker)
         files_created.append(exc_path)
         
         # 7. Repository file (if enabled)
@@ -3689,27 +3902,30 @@ def scaffold_model_enhanced(
             if not os.path.exists("app/repositories/__init__.py"):
                 with open("app/repositories/__init__.py", "w") as f:
                     f.write('"""Repository patterns for data access"""\n')
-            write_file(repo_path, repo_content)
+            write_file(repo_path, repo_content, tracker=tracker)
             files_created.append(repo_path)
         
         # 8. Test file (if enabled)
         if generate_tests:
             test_content = generate_test_file(model, [(f.name, f.field_type.value) for f in fields])
             test_path = f"tests/test_{snake_name}.py"
-            write_file(test_path, test_content)
+            write_file(test_path, test_content, tracker=tracker)
             files_created.append(test_path)
         
         # 9. Update base.py and API router
-        update_base_py(model)
-        update_api_router(model)
+        update_base_py(model, tracker)
+        update_api_router(model, tracker)
         
         # 10. Run migrations (if enabled)
         if run_migrations:
-            migration_success = run_migration(model, fields)
+            migration_success = run_migration(model, fields, tracker)
             if not migration_success:
                 print("⚠️  Migration failed, but files were created")
         
-        # 11. Clean up any temporary files
+        # 11. Save comprehensive tracking information
+        tracker.save_tracking_info()
+        
+        # 12. Clean up any temporary files
         temp_files = ["fix_alembic_temp.py", "verify_table.py", "fix_alembic.py"]
         for temp_file in temp_files:
             if os.path.exists(temp_file):
@@ -3720,6 +3936,7 @@ def scaffold_model_enhanced(
         
         print(f"✅ Successfully scaffolded {pascal_name}!")
         print(f"📁 Files created: {len(files_created)}")
+        print(f"💾 Tracking information saved for future removal")
         
         return True
         
@@ -3757,13 +3974,147 @@ def list_models_enhanced(detailed: bool = False, json_output: bool = False):
                 print(f"   Features: {', '.join(features)}")
         print()
 
-def remove_model_enhanced(model: str, cascade: bool = False, force: bool = False):
-    """Enhanced remove model function"""
-    tracking = load_tracking()
+def remove_model_enhanced(model: str, cascade: bool = False, force: bool = False, clean_database: bool = False):
+    """
+    Enhanced remove model function with comprehensive rollback capabilities.
+    Uses tracking information to completely undo all scaffold changes.
+    """
+    print(f"🔍 Loading tracking information for {model}...")
     
-    if model not in tracking:
-        print(f"❌ Model {model} not found in scaffolded models")
-        return
+    # Load tracking info
+    track_info = ScaffoldTracker.load_model_tracking(model)
+    if not track_info:
+        print(f"❌ No tracking information found for {model}")
+        print("   This model may not have been scaffolded with tracking support.")
+        
+        # Fallback to basic removal
+        tracking = load_tracking()
+        if model in tracking:
+            return remove_model_basic_fallback(model, force)
+        else:
+            print(f"❌ Model {model} not found in any tracking records")
+            return
+    
+    print(f"📊 Found tracking info from {track_info.get('timestamp', 'unknown time')}")
+    print(f"📁 Files to process: {len(track_info.get('files_created', []))} created, {len(track_info.get('files_modified', []))} modified")
+    print(f"🔗 Imports added: {len(track_info.get('imports_added', []))}")
+    print(f"📦 Migrations: {len(track_info.get('migrations_created', []))}")
+    
+    if not force:
+        print(f"\n⚠️  This will completely undo all changes made when scaffolding {model}:")
+        print("   • Remove all generated files")
+        print("   • Restore modified files from backups") 
+        print("   • Remove imports from base.py and api.py")
+        if clean_database:
+            print("   • Drop database table and remove migrations")
+        print()
+        
+        response = input("Are you sure you want to proceed? (y/N): ")
+        if response.lower() != 'y':
+            print("❌ Removal cancelled")
+            return
+    
+    print(f"\n🚀 Starting comprehensive removal of {model}...")
+    
+    removal_success = True
+    
+    # Step 1: Remove created files
+    print("\n📁 Removing created files...")
+    files_created = track_info.get('files_created', [])
+    for file_info in files_created:
+        file_path = file_info.get('path') if isinstance(file_info, dict) else file_info
+        try:
+            if os.path.exists(file_path):
+                os.remove(file_path)
+                print(f"🗑️  Removed: {file_path}")
+            else:
+                print(f"⚠️  File not found: {file_path}")
+        except Exception as e:
+            print(f"❌ Error removing {file_path}: {e}")
+            removal_success = False
+    
+    # Step 2: Restore modified files from backups
+    print("\n🔄 Restoring modified files from backups...")
+    files_modified = track_info.get('files_modified', [])
+    for mod_info in files_modified:
+        file_path = mod_info.get('path')
+        backup_path = mod_info.get('backup_path')
+        
+        try:
+            if backup_path and os.path.exists(backup_path):
+                # Restore from backup
+                with open(backup_path, 'r') as f:
+                    original_content = f.read()
+                
+                with open(file_path, 'w') as f:
+                    f.write(original_content)
+                
+                print(f"🔄 Restored: {file_path} from backup")
+                
+                # Remove backup file
+                os.remove(backup_path)
+                print(f"🗑️  Cleaned up backup: {backup_path}")
+            else:
+                print(f"⚠️  Backup not found for {file_path}, attempting manual cleanup...")
+                if manual_cleanup_imports(file_path, model):
+                    print(f"✅ Manual cleanup successful for {file_path}")
+                else:
+                    print(f"❌ Manual cleanup failed for {file_path}")
+                    removal_success = False
+        except Exception as e:
+            print(f"❌ Error restoring {file_path}: {e}")
+            removal_success = False
+    
+    # Step 3: Remove migrations and database changes (if requested)
+    if clean_database:
+        print("\n📦 Cleaning up migrations and database...")
+        migrations_created = track_info.get('migrations_created', [])
+        
+        for migration_info in migrations_created:
+            migration_file = migration_info.get('file') if isinstance(migration_info, dict) else migration_info
+            try:
+                if os.path.exists(migration_file):
+                    os.remove(migration_file)
+                    print(f"🗑️  Removed migration: {migration_file}")
+            except Exception as e:
+                print(f"❌ Error removing migration {migration_file}: {e}")
+                removal_success = False
+        
+        # Drop database table
+        if drop_model_table(model):
+            print(f"🗃️  Dropped database table for {model}")
+        else:
+            print(f"⚠️  Could not drop database table for {model}")
+    
+    # Step 4: Clean up tracking files
+    print("\n💾 Cleaning up tracking information...")
+    try:
+        tracker = ScaffoldTracker(model)
+        tracker.cleanup_tracking_files()
+        
+        # Remove from main tracking
+        tracking = load_tracking()
+        if model in tracking:
+            del tracking[model]
+            save_tracking(tracking)
+            print(f"🗑️  Removed {model} from main tracking")
+    except Exception as e:
+        print(f"❌ Error cleaning tracking files: {e}")
+        removal_success = False
+    
+    # Final status
+    if removal_success:
+        print(f"\n✅ Successfully removed {model} and all associated changes!")
+        print("🔄 All modifications have been rolled back to the pre-scaffold state.")
+    else:
+        print(f"\n⚠️  {model} removal completed with some errors.")
+        print("   Please check the output above and manually clean up any remaining files.")
+    
+    return removal_success
+
+def remove_model_basic_fallback(model: str, force: bool = False):
+    """Fallback removal for models without detailed tracking"""
+    tracking = load_tracking()
     
     if not force:
         response = input(f"⚠️  Are you sure you want to remove {model}? (y/N): ")
@@ -3785,7 +4136,84 @@ def remove_model_enhanced(model: str, cascade: bool = False, force: bool = False
     del tracking[model]
     save_tracking(tracking)
     
-    print(f"✅ Successfully removed {model}")
+    print(f"✅ Successfully removed {model} (basic fallback mode)")
+
+def manual_cleanup_imports(file_path: str, model: str) -> bool:
+    """Manually clean up imports when no backup is available"""
+    try:
+        snake_name = snake_case(model)
+        pascal_name = pascal_case(model)
+        
+        with open(file_path, 'r') as f:
+            content = f.read()
+        
+        original_content = content
+        
+        # Remove imports related to this model
+        import_patterns = [
+            f"from app.db.models.{snake_name} import {pascal_name}",
+            f"from app.api.v1.endpoints import {snake_name}",
+            f'api_router.include_router({snake_name}.router, tags=["{pascal_name}s"])'
+        ]
+        
+        for pattern in import_patterns:
+            # Remove exact line matches
+            lines = content.split('\n')
+            lines = [line for line in lines if pattern not in line]
+            content = '\n'.join(lines)
+        
+        # Only write if we made changes
+        if content != original_content:
+            with open(file_path, 'w') as f:
+                f.write(content)
+            return True
+        
+        return True
+        
+    except Exception:
+        return False
+
+def drop_model_table(model: str) -> bool:
+    """Drop the database table for a model"""
+    try:
+        snake_name = snake_case(model)
+        table_name = f"{snake_name}s"
+        
+        drop_script = f'''
+import asyncio
+from app.db.session import engine
+from sqlalchemy import text
+
+async def drop_table():
+    try:
+        async with engine.begin() as conn:
+            # Check if table exists
+            exists_result = await conn.execute(text("SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = '{table_name}');"))
+            if exists_result.scalar():
+                await conn.execute(text("DROP TABLE {table_name} CASCADE;"))
+                print("✅ Table {table_name} dropped successfully")
+                return True
+            else:
+                print("ℹ️  Table {table_name} does not exist")
+                return True
+    except Exception as e:
+        print(f"❌ Error dropping table: {{e}}")
+        return False
+
+result = asyncio.run(drop_table())
+exit(0 if result else 1)
+'''
+        
+        with open("temp_drop_table.py", "w") as f:
+            f.write(drop_script)
+        
+        result = subprocess.run(["python", "temp_drop_table.py"], capture_output=True, text=True)
+        os.remove("temp_drop_table.py")
+        
+        return result.returncode == 0
+        
+    except Exception:
+        return False
 
 def health_check_enhanced(fix_issues: bool = False, verbose: bool = False):
     """Enhanced health check function"""
@@ -3919,6 +4347,67 @@ def interactive_scaffold_mode(config: ScaffoldConfig) -> bool:
     
     return scaffold_model_enhanced(model, fields, features, config)
 
+def show_model_tracking(model: str):
+    """Show detailed tracking information for a model"""
+    track_info = ScaffoldTracker.load_model_tracking(model)
+    
+    if not track_info:
+        print(f"❌ No tracking information found for {model}")
+        return
+    
+    print(f"📋 Tracking Information for {model}")
+    print("=" * 50)
+    print(f"🕒 Scaffolded: {track_info.get('timestamp', 'Unknown')}")
+    
+    files_created = track_info.get('files_created', [])
+    files_modified = track_info.get('files_modified', [])
+    imports_added = track_info.get('imports_added', [])
+    migrations = track_info.get('migrations_created', [])
+    
+    print(f"\n📁 Files Created ({len(files_created)}):")
+    for file_info in files_created:
+        path = file_info.get('path') if isinstance(file_info, dict) else file_info
+        size = file_info.get('size', 'unknown') if isinstance(file_info, dict) else 'unknown'
+        exists = "✅" if os.path.exists(path) else "❌"
+        print(f"  {exists} {path} ({size} bytes)")
+    
+    print(f"\n🔄 Files Modified ({len(files_modified)}):")
+    for mod_info in files_modified:
+        path = mod_info.get('path')
+        backup = mod_info.get('backup_path')
+        changes = mod_info.get('changes', [])
+        exists = "✅" if os.path.exists(path) else "❌"
+        backup_exists = "✅" if backup and os.path.exists(backup) else "❌"
+        print(f"  {exists} {path}")
+        print(f"    Backup: {backup_exists} {backup}")
+        for change in changes:
+            print(f"    • {change}")
+    
+    print(f"\n🔗 Imports Added ({len(imports_added)}):")
+    for import_info in imports_added:
+        file_path = import_info.get('file')
+        import_line = import_info.get('import')
+        print(f"  📄 {file_path}")
+        print(f"    {import_line}")
+    
+    print(f"\n📦 Migrations Created ({len(migrations)}):")
+    for migration in migrations:
+        file_path = migration.get('file') if isinstance(migration, dict) else migration
+        migration_id = migration.get('migration_id', 'unknown') if isinstance(migration, dict) else 'unknown'
+        exists = "✅" if os.path.exists(file_path) else "❌"
+        print(f"  {exists} {file_path} (ID: {migration_id})")
+    
+    db_changes = track_info.get('database_changes', [])
+    if db_changes:
+        print(f"\n🗃️ Database Changes ({len(db_changes)}):")
+        for change in db_changes:
+            operation = change.get('operation')
+            details = change.get('details', {})
+            timestamp = change.get('timestamp')
+            print(f"  🔧 {operation} at {timestamp}")
+            for key, value in details.items():
+                print(f"    {key}: {value}")
+
 def print_success_message(model: str):
     """Print comprehensive success message"""
     snake_name = snake_case(model)
@@ -3952,6 +4441,11 @@ def print_success_message(model: str):
 4. 🚀 Start server: uvicorn app.main:app --reload
 5. 📖 View docs: http://localhost:8000/docs
 6. 🎮 Test endpoints with the interactive API docs
+
+🗑️ Removal Commands:
+• python scaffold_model_updated.py remove {model} --show-tracking (show tracking info)
+• python scaffold_model_updated.py remove {model} (remove files only)
+• python scaffold_model_updated.py remove {model} --clean-database (full removal + drop table)
 
 🔧 Advanced Features:
 - ⚡ Concurrent processing with ThreadPoolExecutor
