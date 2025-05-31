@@ -17,6 +17,7 @@ from sys import prefix
 from fastapi_mcp import FastApiMCP
 from fastapi import FastAPI, HTTPException
 from sqlalchemy.exc import SQLAlchemyError
+import logging
 from app.core.logging import setup_logging
 from app.core.config import get_settings
 from app.db.base import Base
@@ -116,7 +117,6 @@ async def on_startup():
     - Initializes Procrastinate PostgreSQL task queue
     - (Removed: table creation, handled by Alembic migrations)
     """
-    import logging
     
     # Start enhanced task queue
     enhanced_task_queue.start(num_workers=8)  # Start with 8 concurrent workers

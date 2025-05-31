@@ -261,7 +261,24 @@ def parse_fields(field_specs: List[str]) -> List[FieldDefinition]:
             for part in parts[1:]:
                 if '=' in part:
                     key, value = part.split('=', 1)
-                    constraints[key.strip()] = value.strip()
+                    key = key.strip()
+                    value = value.strip()
+                    
+                    # Handle special parsing for choices
+                    if key == 'choices':
+                        constraints[key] = [choice.strip() for choice in value.split(',')]
+                    else:
+                        # Handle other value types
+                        if value.lower() == 'true':
+                            constraints[key] = True
+                        elif value.lower() == 'false':
+                            constraints[key] = False
+                        elif value.isdigit():
+                            constraints[key] = int(value)
+                        elif value.replace('.', '', 1).isdigit():
+                            constraints[key] = float(value)
+                        else:
+                            constraints[key] = value
                 else:
                     constraints[part.strip()] = True
             
@@ -335,7 +352,8 @@ def generate_model_file(model: str, fields: List[FieldDefinition], config: Scaff
     snake_name = snake_case(model)
     pascal_name = pascal_case(model)
     
-    imports = [
+    # Determine which imports are needed based on field types
+    base_imports = [
         "from sqlalchemy import Column, Integer, String, Text, Boolean, Float, DateTime, Date, JSON",
         "from sqlalchemy import ForeignKey, UniqueConstraint, Index, CheckConstraint",
         "from sqlalchemy.dialects.postgresql import UUID, JSONB",
@@ -348,6 +366,13 @@ def generate_model_file(model: str, fields: List[FieldDefinition], config: Scaff
         "from app.db.base import Base",
         "from app.db.mixins import TimestampMixin, SoftDeleteMixin, AuditMixin"
     ]
+    
+    # Add Numeric import if any decimal fields exist
+    has_decimal = any(field.field_type == FieldType.DECIMAL for field in fields)
+    if has_decimal:
+        base_imports[0] = "from sqlalchemy import Column, Integer, String, Text, Boolean, Float, DateTime, Date, JSON, Numeric"
+    
+    imports = base_imports
     
     # Determine mixins based on config
     mixins = ["Base"]
@@ -481,7 +506,7 @@ class {pascal_name}({", ".join(mixins)}):
     def display_name(self) -> str:
         """Human-readable display name"""
         # Customize based on your model fields
-        return f"{{{pascal_name}}} {{self.id}}"
+        return f"{pascal_name} {{self.id}}"
     
     # Class methods
     @classmethod
@@ -2462,6 +2487,11 @@ def scaffold_model_enhanced(
         if features.get('repository_pattern'):
             repo_content = generate_repository_file(model, fields, config)
             repo_path = f"app/repositories/{snake_name}_repository.py"
+            # Ensure repositories directory exists and has __init__.py
+            os.makedirs("app/repositories", exist_ok=True)
+            if not os.path.exists("app/repositories/__init__.py"):
+                with open("app/repositories/__init__.py", "w") as f:
+                    f.write('"""Repository patterns for data access"""\n')
             write_file(repo_path, repo_content)
             files_created.append(repo_path)
         
