@@ -26,6 +26,17 @@ dependencies = [
     "passlib[bcrypt]",
     "fastmcp>=2.3.2",
     "mcp>=1.8.0",
+    # Enhanced concurrent processing dependencies
+    "aiofiles>=23.0.0",
+    "pillow>=10.0.0",
+    # Procrastinate - PostgreSQL-based task queue
+    "procrastinate>=3.0.0",
+    "procrastinate[psycopg2-binary]>=3.0.0",
+    "aiopg>=1.4.0",
+    "colorama>=0.4.6",
+    "typer>=0.15.3",
+    "rich>=14.0.0",
+    "pyyaml>=6.0.2",
 ]
 [tool.poetry.dependencies]
 python = "^3.11"

@@ -1,0 +1,150 @@
+version: "3.8"
+
+services:
+  # Main FastAPI application
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://postgres:password@db:5432/fastapi_db
+      - DATABASE_URL_WITHOUT_ASYNC=postgresql://postgres:password@db:5432/fastapi_db
+      - JWT_SECRET_TOKEN=your-secret-token-here
+      - POSTGRES_HOST=db
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DATABASE=fastapi_db
+      - PROCRASTINATE_WORKER_CONCURRENCY=10
+    depends_on:
+      - db
+    volumes:
+      - .:/app
+    networks:
+      - fastapi_network
+
+  # PostgreSQL Database
+  db:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=fastapi_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - fastapi_network
+
+  # Procrastinate Worker 1 - General Processing
+  procrastinate_worker_general:
+    build: .
+    command: python procrastinate_worker.py worker --queues user_processing data_processing notifications --concurrency 15
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://postgres:password@db:5432/fastapi_db
+      - DATABASE_URL_WITHOUT_ASYNC=postgresql://postgres:password@db:5432/fastapi_db
+      - POSTGRES_HOST=db
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DATABASE=fastapi_db
+    depends_on:
+      - db
+    volumes:
+      - .:/app
+    networks:
+      - fastapi_network
+    restart: unless-stopped
+
+  # Procrastinate Worker 2 - File Processing
+  procrastinate_worker_files:
+    build: .
+    command: python procrastinate_worker.py worker --queues file_processing --concurrency 5
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://postgres:password@db:5432/fastapi_db
+      - DATABASE_URL_WITHOUT_ASYNC=postgresql://postgres:password@db:5432/fastapi_db
+      - POSTGRES_HOST=db
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DATABASE=fastapi_db
+    depends_on:
+      - db
+    volumes:
+      - .:/app
+    networks:
+      - fastapi_network
+    restart: unless-stopped
+
+  # Procrastinate Worker 3 - Analytics (High Priority)
+  procrastinate_worker_analytics:
+    build: .
+    command: python procrastinate_worker.py worker --queues analytics --concurrency 3
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://postgres:password@db:5432/fastapi_db
+      - DATABASE_URL_WITHOUT_ASYNC=postgresql://postgres:password@db:5432/fastapi_db
+      - POSTGRES_HOST=db
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DATABASE=fastapi_db
+    depends_on:
+      - db
+    volumes:
+      - .:/app
+    networks:
+      - fastapi_network
+    restart: unless-stopped
+
+  # Procrastinate Worker 4 - Maintenance & Health Checks
+  procrastinate_worker_maintenance:
+    build: .
+    command: python procrastinate_worker.py worker --queues maintenance health_checks --concurrency 2
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://postgres:password@db:5432/fastapi_db
+      - DATABASE_URL_WITHOUT_ASYNC=postgresql://postgres:password@db:5432/fastapi_db
+      - POSTGRES_HOST=db
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DATABASE=fastapi_db
+    depends_on:
+      - db
+    volumes:
+      - .:/app
+    networks:
+      - fastapi_network
+    restart: unless-stopped
+
+  # Redis for enhanced caching (optional, for future use)
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - fastapi_network
+    restart: unless-stopped
+
+  # Nginx reverse proxy (optional, for production)
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - app
+    networks:
+      - fastapi_network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  fastapi_network:
+    driver: bridge

@@ -42,7 +42,8 @@ app = FastAPI(
     version="1.0.0",
     description="""
     A modular and scalable FastAPI boilerplate for rapid backend development.
-    Features async SQLAlchemy, Alembic migrations, JWT authentication, role-based permissions, async task queue, and more.
+    Features async SQLAlchemy, Alembic migrations, JWT authentication, role-based permissions, 
+    concurrent processing, enhanced task queues, and Procrastinate PostgreSQL-based task persistence.
     """,
     contact={
         "name": "Your Team or Name",
@@ -60,6 +61,8 @@ app = FastAPI(
         {"name": "Users", "description": "Operations with users: CRUD, authentication, roles."},
         {"name": "Auth", "description": "Authentication endpoints: login, token, etc."},
         {"name": "Health", "description": "Health and readiness checks for orchestration."},
+        {"name": "Bulk Operations", "description": "High-performance bulk operations with concurrent processing."},
+        {"name": "Procrastinate Tasks", "description": "Persistent, distributed task queue using PostgreSQL."},
         # Add more tags as you add more routers
     ]
 )
@@ -100,19 +103,34 @@ app.add_exception_handler(Exception, generic_exception_handler)
 # --- Mount versioned API router ---
 app.include_router(api_router, prefix="/api/v1")
 
-from app.utils.task_queue import async_task_queue  # Async task queue for background jobs
+from app.utils.task_queue import enhanced_task_queue  # Enhanced async task queue for background jobs
+from app.utils.concurrent_utils import shutdown_concurrent_manager
+from app.utils.procrastinate_manager import init_procrastinate  # Procrastinate PostgreSQL task queue
 
-# --- Startup event: start background workers only (DB schema managed by Alembic) ---
+# --- Startup event: start background workers and Procrastinate ---
 @app.on_event("startup")
 async def on_startup():
     """
     Startup event handler:
     - Starts the async task queue worker
+    - Initializes Procrastinate PostgreSQL task queue
     - (Removed: table creation, handled by Alembic migrations)
     """
     import logging
-    async_task_queue.start()
-    logging.info("Startup complete. Database migrations must be managed via Alembic.")
+    
+    # Start enhanced task queue
+    enhanced_task_queue.start(num_workers=8)  # Start with 8 concurrent workers
+    logging.info("Enhanced task queue started with concurrent processing.")
+    
+    # Initialize Procrastinate
+    try:
+        init_procrastinate()
+        logging.info("Procrastinate PostgreSQL task queue initialized successfully.")
+    except Exception as e:
+        logging.error(f"Failed to initialize Procrastinate: {e}")
+        # Don't raise - allow app to start even if Procrastinate fails
+    
+    logging.info("Startup complete. All task processing systems initialized.")
     # ---
     # The following code is commented out to prevent conflicts with Alembic migrations:
     # from sqlalchemy.ext.asyncio import AsyncEngine
@@ -132,9 +150,11 @@ async def on_startup():
 @app.on_event("shutdown")
 async def on_shutdown():
     """
-    Shutdown event handler: stops the async task queue worker.
+    Shutdown event handler: stops the enhanced task queue and concurrent managers.
     """
-    async_task_queue.stop()
+    enhanced_task_queue.stop()
+    await shutdown_concurrent_manager()
+    logging.info("Shutdown complete. All concurrent processing stopped.")
 
 # --- Health check endpoints for orchestration and monitoring ---
 @app.get("/", tags=["Health"], description="Welcome message and basic service status.")
@@ -142,7 +162,7 @@ def root():
     """
     Root endpoint for health checks and welcome message.
     """
-    return {"status": "ok", "message": "Welcome to the FastAPI Modular Boilerplate!"}
+    return {"status": "ok", "message": "Welcome to the FastAPI Modular Boilerplate with Procrastinate!"}
 
 @app.get("/health", tags=["Health"], description="Basic liveness probe for orchestration.")
 def health():

@@ -98,15 +98,129 @@ def make_service(model_name):
         return
     with open(fname, "w") as f:
         f.write(f'''"""
-Service for {model_name} business logic and CRUD operations.
+Enhanced Service for {model_name} with concurrent processing capabilities.
 """
-from app.services.base_service import BaseService
-from app.db.models.{snake_case(model_name)} import {model_name}
+from typing import List, Dict, Any, Optional
+from sqlalchemy.ext.asyncio import AsyncSession
+from loguru import logger
 
-class {model_name}Service(BaseService[{model_name}]):
-    \"\"\"Service class for {model_name}. Inherit and extend for custom business logic.\"\"\"
+from app.services.enhanced_base_service import EnhancedBaseService
+from app.db.models.{snake_case(model_name)} import {model_name}
+from app.utils.concurrent_utils import TaskType, execute_parallel
+
+class {model_name}Service(EnhancedBaseService[{model_name}]):
+    \"\"\"
+    Enhanced service class for {model_name} with parallel processing capabilities.
+    Provides concurrent operations for bulk processing and improved performance.
+    \"\"\"
+    
     def __init__(self):
         super().__init__({model_name})
+    
+    # Add custom parallel processing methods here
+    
+    async def bulk_process_{snake_case(model_name)}s(
+        self, 
+        db: AsyncSession, 
+        items: List[Dict[str, Any]],
+        processor_func: callable = None
+    ) -> List[{model_name}]:
+        \"\"\"
+        Process multiple {snake_case(model_name)}s in parallel.
+        
+        Args:
+            db: Database session
+            items: List of {snake_case(model_name)} data to process
+            processor_func: Optional custom processing function
+        
+        Returns:
+            List of processed {model_name} instances
+        \"\"\"
+        if processor_func:
+            # Use custom processor function
+            processed_items = await self.process_data_parallel(
+                items, processor_func, TaskType.CPU_BOUND
+            )
+            return await self.bulk_create_parallel(db, processed_items)
+        else:
+            # Default processing - direct bulk create
+            return await self.bulk_create_parallel(db, items)
+    
+    async def validate_{snake_case(model_name)}s_parallel(
+        self, 
+        data: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        \"\"\"
+        Validate multiple {snake_case(model_name)}s in parallel.
+        
+        Args:
+            data: List of {snake_case(model_name)} data to validate
+        
+        Returns:
+            List of validated data
+        \"\"\"
+        def validate_{snake_case(model_name)}_data(item_data: Dict[str, Any]) -> Dict[str, Any]:
+            # Add your validation logic here
+            # Example: Check required fields
+            required_fields = ['name']  # Customize based on your model
+            for field in required_fields:
+                if not item_data.get(field):
+                    raise ValueError(f"Missing required field: {{field}}")
+            return item_data
+        
+        return await self.validate_data_parallel(data, validate_{snake_case(model_name)}_data)
+    
+    async def export_{snake_case(model_name)}s_parallel(
+        self, 
+        db: AsyncSession, 
+        filters: Optional[Dict[str, Any]] = None
+    ) -> List[Dict[str, Any]]:
+        \"\"\"
+        Export {snake_case(model_name)}s data in parallel with processing.
+        
+        Args:
+            db: Database session
+            filters: Optional filters for selection
+        
+        Returns:
+            List of exported {snake_case(model_name)} data
+        \"\"\"
+        # Get items based on filters
+        items = await self.find(db, filters)
+        
+        def process_{snake_case(model_name)}_export(item: {model_name}) -> Dict[str, Any]:
+            \"\"\"Process {snake_case(model_name)} data for export\"\"\"
+            return {{
+                'id': item.id,
+                # Add other fields as needed
+                # 'name': item.name,
+                # 'created_at': getattr(item, 'created_at', None),
+            }}
+        
+        return await self.process_data_parallel(
+            items, process_{snake_case(model_name)}_export, TaskType.CPU_BOUND
+        )
+    
+    async def generate_{snake_case(model_name)}_statistics_parallel(
+        self, 
+        db: AsyncSession
+    ) -> Dict[str, Any]:
+        \"\"\"
+        Generate comprehensive {snake_case(model_name)} statistics in parallel.
+        
+        Args:
+            db: Database session
+        
+        Returns:
+            Dictionary of statistics
+        \"\"\"
+        stat_configs = [
+            {{'name': 'total_{snake_case(model_name)}s', 'type': 'count', 'filters': None}},
+            # Add more statistics as needed
+            # {{'name': 'active_{snake_case(model_name)}s', 'type': 'count', 'filters': {{'is_active': True}}}},
+        ]
+        
+        return await self.generate_statistics_parallel(db, stat_configs)
 ''')
     # Add to __init__.py for import convenience
     init_file = f"{BASE_PATH}/services/__init__.py"
