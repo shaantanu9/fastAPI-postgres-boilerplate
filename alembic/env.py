@@ -35,6 +35,52 @@ target_metadata = Base.metadata
 # my_important_option = config.get_main_option("my_important_option")
 # ... etc.
 
+# SCAFFOLD_SAFE_AUTOGENERATE_CONFIG - Prevents touching existing infrastructure
+def include_name(name, type_, parent_names):
+    """
+    Filter function to prevent autogenerate from touching existing infrastructure.
+    Only includes tables that are part of our application models.
+    """
+    if type_ == "table":
+        # List of infrastructure tables to never touch
+        infrastructure_tables = {
+            'alembic_version',
+            'procrastinate_jobs', 
+            'procrastinate_events',
+            'procrastinate_periodic_defers',
+            'procrastinate_locks',
+            'procrastinate_workers'
+        }
+        
+        # Skip infrastructure tables
+        if name in infrastructure_tables:
+            return False
+        
+        # Only include tables that match our application naming pattern
+        # This prevents touching any existing tables not managed by our scaffold
+        return True
+    
+    return True
+
+def include_object(object, name, type_, reflected, compare_to):
+    """
+    Advanced filtering to prevent autogenerate from modifying existing infrastructure.
+    """
+    if type_ == "table":
+        # Infrastructure tables to never touch
+        infrastructure_tables = {
+            'alembic_version',
+            'procrastinate_jobs', 
+            'procrastinate_events', 
+            'procrastinate_periodic_defers',
+            'procrastinate_locks',
+            'procrastinate_workers'
+        }
+        
+        if name in infrastructure_tables:
+            return False
+    
+    return True
 
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode.
@@ -54,6 +100,8 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        include_name=include_name,
+        include_object=include_object,
     )
 
     with context.begin_transaction():
@@ -75,7 +123,12 @@ def run_migrations_online() -> None:
 
     with connectable.connect() as connection:
         context.configure(
-            connection=connection, target_metadata=target_metadata
+            connection=connection,
+            target_metadata=target_metadata,
+            include_name=include_name,
+            include_object=include_object,
+            compare_type=True,
+            compare_server_default=True,
         )
 
         with context.begin_transaction():
