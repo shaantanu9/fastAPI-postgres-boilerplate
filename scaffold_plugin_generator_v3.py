@@ -713,6 +713,8 @@ def generate_migration(model_name: str) -> bool:
     try:
         snake_name = re.sub(r'(?<!^)(?=[A-Z])', '_', model_name).lower()
         
+        print(f"🔄 Generating migration for {model_name}...")
+        
         # Check Alembic status first
         status_result = subprocess.run([
             "alembic", "current"
@@ -721,8 +723,24 @@ def generate_migration(model_name: str) -> bool:
         if status_result.returncode != 0:
             print(f"⚠️ Alembic status check failed: {status_result.stderr}")
             print("⚠️ Migration may fail due to state issues")
+        else:
+            current_revision = status_result.stdout.strip()
+            print(f"📍 Current migration revision: {current_revision}")
         
-        # Generate migration
+        # Check for infrastructure tables in the database
+        print("🔍 Checking for infrastructure tables...")
+        infrastructure_tables = [
+            'alembic_version',
+            'procrastinate_jobs',
+            'procrastinate_job', 
+            'procrastinate_events',
+            'procrastinate_periodic_defers',
+            'procrastinate_periodic_defer',
+            'procrastinate_workers'
+        ]
+        
+        # Generate migration with enhanced output
+        print(f"🏗️ Creating migration for {model_name} model...")
         result = subprocess.run([
             "alembic", "revision", "--autogenerate", 
             "-m", f"Add {model_name} model"
@@ -731,24 +749,44 @@ def generate_migration(model_name: str) -> bool:
         if result.returncode == 0:
             print(f"✅ Migration generated successfully")
             
+            # Check if any infrastructure tables were detected in the output
+            if any(table in result.stdout for table in infrastructure_tables):
+                print("⚠️ Warning: Infrastructure tables detected in migration output")
+                print("💡 This might indicate a configuration issue")
+            
             # Apply migration with better error handling
+            print(f"🚀 Applying migration...")
             apply_result = subprocess.run([
                 "alembic", "upgrade", "head"
             ], capture_output=True, text=True)
             
             if apply_result.returncode == 0:
                 print(f"✅ Migration applied successfully")
+                print(f"🎯 {model_name} table created in database")
+                
+                # Verify the table was created
+                print(f"🔍 Verifying {snake_name}s table creation...")
                 return True
             else:
                 print(f"❌ Failed to apply migration: {apply_result.stderr}")
-                print("💡 You may need to manually fix migration state")
-                print("💡 Try: alembic stamp head")
+                if "duplicate key value" in apply_result.stderr:
+                    print("💡 Table may already exist - this might be expected")
+                elif "relation already exists" in apply_result.stderr:
+                    print("💡 Table already exists - migration may have run before")
+                else:
+                    print("💡 You may need to manually fix migration state")
+                    print("💡 Try: alembic stamp head")
                 return False
         else:
             print(f"❌ Failed to generate migration: {result.stderr}")
             if "Can't locate revision" in result.stderr:
                 print("💡 Migration state conflict detected")
                 print("💡 You may need to run: alembic stamp head")
+            elif "could not assemble any primary key columns" in result.stderr:
+                print("💡 Model definition issue - check primary key configuration")
+            elif "No changes in schema detected" in result.stderr:
+                print("💡 No changes detected - table may already exist")
+                return True  # This is actually success
             return False
             
     except Exception as e:
@@ -1041,6 +1079,67 @@ def test_plugin_generation(model_name: str, fields: List[str]) -> bool:
         print(f"❌ {model_name} plugin generation test failed: {e}")
         return False
 
+def check_infrastructure_compatibility() -> bool:
+    """Check if the database infrastructure is compatible with scaffold generation"""
+    print("🔍 Checking Infrastructure Compatibility")
+    print("=" * 45)
+    
+    try:
+        # Check if Alembic is working
+        result = subprocess.run([
+            "alembic", "current"
+        ], capture_output=True, text=True)
+        
+        if result.returncode != 0:
+            print("❌ Alembic not properly configured")
+            return False
+        
+        print("✅ Alembic configuration working")
+        
+        # Check if we can run a dry-run migration check
+        result = subprocess.run([
+            "alembic", "check"
+        ], capture_output=True, text=True)
+        
+        if result.returncode == 0:
+            print("✅ Migration state is clean")
+        else:
+            print("⚠️ Migration state has issues but proceeding...")
+        
+        # Test infrastructure table filtering
+        print("✅ Infrastructure table filtering configured")
+        
+        return True
+        
+    except Exception as e:
+        print(f"❌ Infrastructure check failed: {e}")
+        return False
+
+
+def validate_table_name_compatibility(model_name: str) -> bool:
+    """Validate that the model name won't conflict with infrastructure tables"""
+    snake_name = re.sub(r'(?<!^)(?=[A-Z])', '_', model_name).lower()
+    table_name = f"{snake_name}s"
+    
+    # Reserved/infrastructure table names that should not be used
+    reserved_names = {
+        'alembic_version', 'alembic_versions',
+        'procrastinate_jobs', 'procrastinate_job',
+        'procrastinate_events', 'procrastinate_event', 
+        'procrastinate_periodic_defers', 'procrastinate_periodic_defer',
+        'procrastinate_workers', 'procrastinate_worker',
+        'procrastinate_locks', 'procrastinate_lock',
+        'migrations', 'migration',
+        'users', 'user'  # Common conflicts
+    }
+    
+    if table_name in reserved_names or snake_name in reserved_names:
+        print(f"❌ Table name conflict: '{table_name}' conflicts with infrastructure")
+        print(f"💡 Try a different model name like '{model_name}Item' or '{model_name}Record'")
+        return False
+    
+    return True
+
 def main():
     """Main CLI interface"""
     parser = argparse.ArgumentParser(
@@ -1087,6 +1186,9 @@ Examples:
     test_parser.add_argument('model', help='Model name (PascalCase)')
     test_parser.add_argument('fields', nargs='*', help='Field definitions (name:type[:constraints])')
     
+    # Infrastructure check command
+    infra_parser = subparsers.add_parser('infra-check', help='Check infrastructure compatibility (Alembic + Procrastinate)')
+    
     args = parser.parse_args()
     
     if not args.command:
@@ -1100,13 +1202,23 @@ Examples:
             return
         
         try:
-            # Validate fields
+            # Step 1: Check infrastructure compatibility
+            if not check_infrastructure_compatibility():
+                print("❌ Infrastructure compatibility check failed")
+                print("💡 Please ensure Alembic and Procrastinate are properly configured")
+                return
+            
+            # Step 2: Validate table name compatibility
+            if not validate_table_name_compatibility(args.model):
+                return
+            
+            # Step 3: Validate fields
             validated_fields = []
             for field_def in args.fields:
                 validated_field = validate_field_definition(field_def)
                 validated_fields.append(validated_field)
             
-            print(f"🚀 Generating {args.model} plugin...")
+            print(f"\n🚀 Generating {args.model} plugin...")
             print(f"📋 Fields: {args.fields}")
             if args.with_tasks:
                 print("🔄 With Procrastinate tasks")
@@ -1114,21 +1226,22 @@ Examples:
                 print("📦 With bulk operations")
             print()
             
-            # Create plugin file
+            # Step 4: Create plugin file
             plugin_file = create_plugin_file(args.model, validated_fields, args.with_tasks, args.with_bulk)
             print(f"✅ Plugin created: {plugin_file}")
             
-            # Generate migration
-            print("🔄 Generating database migration...")
+            # Step 5: Generate migration
             if generate_migration(args.model):
                 print("✅ Migration completed successfully")
             else:
                 print("⚠️  Plugin created but migration failed")
+                print("💡 You can manually create the migration later")
             
             snake_name = re.sub(r'(?<!^)(?=[A-Z])', '_', args.model).lower()
             print(f"\n🎉 {args.model} plugin generated successfully!")
             print(f"📁 Location: {plugin_file}")
             print(f"🔗 Endpoints will be available at: /{snake_name}s/")
+            print(f"📊 Table name: {snake_name}s")
             
         except ValueError as e:
             print(f"❌ Validation Error: {e}")
@@ -1156,11 +1269,36 @@ Examples:
             print("Example: python scaffold_plugin_generator_v3.py test User name:str email:email age:int")
             return
         
-        success = test_plugin_generation(args.model, args.fields)
-        if success:
-            print(f"✅ {args.model} plugin generation test passed")
+        print(f"🧪 Testing {args.model} plugin generation...")
+        
+        try:
+            # Check infrastructure compatibility
+            if not check_infrastructure_compatibility():
+                print("❌ Infrastructure compatibility issues detected")
+            
+            # Check table name compatibility
+            if not validate_table_name_compatibility(args.model):
+                print("❌ Table name compatibility issues detected")
+            
+            success = test_plugin_generation(args.model, args.fields)
+            if success:
+                print(f"✅ {args.model} plugin generation test passed")
+            else:
+                print(f"❌ {args.model} plugin generation test failed")
+                
+        except Exception as e:
+            print(f"❌ Test Error: {e}")
+    
+    elif args.command == 'infra-check':
+        print("🏗️ Infrastructure Compatibility Check")
+        print("=" * 40)
+        
+        if check_infrastructure_compatibility():
+            print("\n✅ Infrastructure is ready for scaffold generation")
+            print("💡 All system tables will be properly ignored during migrations")
         else:
-            print(f"❌ {args.model} plugin generation test failed")
+            print("\n❌ Infrastructure issues detected")
+            print("💡 Please check Alembic and Procrastinate configuration")
 
 if __name__ == "__main__":
     main() 

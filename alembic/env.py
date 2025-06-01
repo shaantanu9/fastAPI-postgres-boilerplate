@@ -45,9 +45,11 @@ def include_name(name, type_, parent_names):
         # List of infrastructure tables to never touch
         infrastructure_tables = {
             'alembic_version',
-            'procrastinate_jobs', 
+            'procrastinate_jobs',
+            'procrastinate_job',  # Alternative naming
             'procrastinate_events',
             'procrastinate_periodic_defers',
+            'procrastinate_periodic_defer',  # Alternative naming
             'procrastinate_locks',
             'procrastinate_workers'
         }
@@ -70,9 +72,11 @@ def include_object(object, name, type_, reflected, compare_to):
         # Infrastructure tables to never touch
         infrastructure_tables = {
             'alembic_version',
-            'procrastinate_jobs', 
+            'procrastinate_jobs',
+            'procrastinate_job',  # Alternative naming
             'procrastinate_events', 
             'procrastinate_periodic_defers',
+            'procrastinate_periodic_defer',  # Alternative naming
             'procrastinate_locks',
             'procrastinate_workers'
         }
