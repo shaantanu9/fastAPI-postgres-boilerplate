@@ -1,5 +1,11 @@
 from fastapi import APIRouter
-from app.api.v1.endpoints import user, task, auth, bulk_operations, procrastinate_tasks, examples, plugins
+from app.api.v1.endpoints import user
+from app.api.v1.endpoints import task 
+from app.api.v1.endpoints import auth
+from app.api.v1.endpoints import bulk_operations
+from app.api.v1.endpoints import procrastinate_tasks
+from app.api.v1.endpoints import examples
+from app.api.v1.endpoints import plugins
 
 api_router = APIRouter()
 api_router.include_router(user.router, prefix="/users", tags=["users"])

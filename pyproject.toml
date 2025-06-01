@@ -44,6 +44,11 @@ dependencies = [
     "aiohttp>=3.8.0",
     "packaging>=25.0",
     "redis>=6.2.0",
+    "webauthn>=2.5.2",
+    "pyotp>=2.9.0",
+    "qrcode>=8.2",
+    "python-jose>=3.5.0",
+    "bcrypt>=4.3.0",
 ]
 [tool.poetry.dependencies]
 python = "^3.11"

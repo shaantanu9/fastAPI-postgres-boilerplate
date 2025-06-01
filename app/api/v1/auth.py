@@ -18,60 +18,6 @@ import json
 router = APIRouter()
 
 
-# Helper function to get current user
-async def get_current_user(
-    request: Request,
-    db: AsyncSession = Depends(get_db)
-) -> UserRead:
-    """Get current authenticated user"""
-    auth_header = request.headers.get("authorization")
-    if not auth_header or not auth_header.startswith("Bearer "):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing or invalid authorization header"
-        )
-    
-    token = auth_header.split(" ")[1]
-    
-    try:
-        payload = jwt_service.verify_token(token)
-        user_id = payload.get("user_id")
-        
-        if not user_id:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token"
-            )
-        
-        user = await enhanced_user_service.get_by_id(db, user_id)
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User not found"
-            )
-        
-        if not user.is_active:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User account is disabled"
-            )
-        
-        # Refresh user and convert to Pydantic model
-        await db.refresh(user)
-        return UserRead.from_orm(user)
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        # For debugging - show actual error
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Token validation failed: {str(e)}"
-        )
-
-
 @router.post("/register", response_model=UserRead, status_code=status.HTTP_201_CREATED)
 async def register_user(
     user_create: UserCreate,
@@ -119,13 +65,11 @@ async def login(
         
         # Check if MFA is required
         if user.mfa_enabled and not login_data.mfa_token:
-            await db.refresh(user)
-            user_data = UserRead.from_orm(user)
             return LoginResponse(
                 access_token="",
                 refresh_token="",
                 expires_in=0,
-                user=user_data,
+                user=user,
                 requires_mfa=True
             )
         
@@ -150,45 +94,21 @@ async def login(
         session.refresh_token = refresh_token
         await db.commit()
         
-        # Refresh user to ensure all fields are loaded
-        await db.refresh(user)
-        
-        # Convert SQLAlchemy User to Pydantic UserRead
-        user_data = UserRead.from_orm(user)
-        
         return LoginResponse(
             access_token=access_token,
             refresh_token=refresh_token,
             expires_in=jwt_service.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-            user=user_data,
+            user=user,
             requires_mfa=False
         )
         
     except HTTPException:
         raise
     except Exception as e:
-        # For debugging - show actual error
-        import traceback
-        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Login failed: {str(e)}"
+            detail="Login failed"
         )
-
-
-# Legacy token endpoint for backward compatibility
-@router.post("/token", response_model=LoginResponse)
-async def login_for_access_token(
-    request: Request,
-    form_data: OAuth2PasswordRequestForm = Depends(),
-    db: AsyncSession = Depends(get_db)
-):
-    """Legacy token endpoint for backward compatibility"""
-    login_data = LoginRequest(
-        username_or_email=form_data.username,
-        password=form_data.password
-    )
-    return await login(login_data, request, db)
 
 
 @router.post("/refresh", response_model=LoginResponse)
@@ -352,15 +272,27 @@ async def check_password_strength(password: str):
         )
 
 
-@router.get("/me", response_model=UserRead)
+@router.get("/me", response_model=UserWithRoles)
 async def get_current_user_info(
     current_user: UserRead = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Get current user information"""
+    """Get current user information with roles and permissions"""
     try:
-        # Simply return the current user that was already verified
-        return current_user
+        user = await enhanced_user_service.get_by_id(db, current_user.id)
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Get user permissions
+        permissions = await enhanced_user_service.get_user_permissions(db, user.id)
+        
+        return UserWithRoles(
+            **user.__dict__,
+            roles=[role for role in user.roles],
+            permissions=permissions
+        )
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -418,3 +350,50 @@ async def get_security_events(
         )
 
 
+# Helper function to get current user (will be imported from security)
+async def get_current_user(
+    request: Request,
+    db: AsyncSession = Depends(get_db)
+) -> UserRead:
+    """Get current authenticated user"""
+    auth_header = request.headers.get("authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing or invalid authorization header"
+        )
+    
+    token = auth_header.split(" ")[1]
+    
+    try:
+        payload = jwt_service.verify_token(token)
+        user_id = payload.get("user_id")
+        
+        if not user_id:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token"
+            )
+        
+        user = await enhanced_user_service.get_by_id(db, user_id)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User not found"
+            )
+        
+        if not user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User account is disabled"
+            )
+        
+        return user
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token validation failed"
+        ) 

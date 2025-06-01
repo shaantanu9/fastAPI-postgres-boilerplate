@@ -1,15 +1,323 @@
 from typing import List, Dict, Any, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.db.models.user import User
+from app.db.models.user import User, Role, Permission, UserSession, SecurityEvent
 from app.core.exception_handlers import AppException
 from sqlalchemy.future import select
 from sqlalchemy.exc import SQLAlchemyError
-from app.db.schemas.user import UserRead
+from app.db.schemas.user import UserRead, UserCreate, UserUpdate
 import asyncio
 from loguru import logger
+from fastapi import HTTPException, status, Request
+from sqlalchemy.orm import Session, selectinload
+from sqlalchemy import update, delete
+from app.core.security import security_service
+from app.core.jwt import jwt_service
+from datetime import datetime, timedelta
+import json
+import secrets
 
 from app.services.enhanced_base_service import EnhancedBaseService
 from app.utils.concurrent_utils import parallel_io, parallel_cpu, TaskType, execute_parallel
+
+class EnhancedUserService:
+    """Enhanced User Service with 2025 enterprise features"""
+
+    async def create_user(self, db: AsyncSession, user_create: UserCreate, created_by: str = None) -> User:
+        """Create a new user with enhanced security validation"""
+        
+        # Validate password
+        password_validation = security_service.validate_password_strength(user_create.password)
+        if not password_validation["valid"]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "message": "Password does not meet security requirements",
+                    "errors": password_validation["errors"],
+                    "strength": password_validation["strength"]
+                }
+            )
+
+        # Check if user already exists
+        existing_user = await self.get_by_username_or_email(db, user_create.username, user_create.email)
+        if existing_user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="User with this username or email already exists"
+            )
+
+        # Create user with hashed password
+        hashed_password = security_service.hash_password(user_create.password)
+        
+        user = User(
+            username=user_create.username,
+            email=user_create.email,
+            first_name=user_create.first_name,
+            last_name=user_create.last_name,
+            hashed_password=hashed_password,
+            created_by=created_by,
+            is_active=True,
+            is_verified=False,  # Require email verification
+            failed_login_attempts=0,
+            login_ip_history="[]",
+            passkey_enabled=False,
+            mfa_enabled=False,
+            max_sessions=5
+        )
+
+        db.add(user)
+        await db.flush()  # Get the user ID
+        
+        # Assign default role
+        await self.assign_role(db, user.id, "user")
+        
+        await db.commit()
+        await db.refresh(user)
+        
+        return user
+
+    async def get_by_username_or_email(self, db: AsyncSession, username: str = None, email: str = None) -> Optional[User]:
+        """Get user by username or email"""
+        query = select(User).options(selectinload(User.roles))
+        
+        if username and email:
+            query = query.where((User.username == username) | (User.email == email))
+        elif username:
+            query = query.where(User.username == username)
+        elif email:
+            query = query.where(User.email == email)
+        else:
+            return None
+            
+        result = await db.execute(query)
+        return result.scalar_one_or_none()
+
+    async def get_by_id(self, db: AsyncSession, user_id: str) -> Optional[User]:
+        """Get user by ID"""
+        query = select(User).options(selectinload(User.roles)).where(User.id == user_id)
+        result = await db.execute(query)
+        return result.scalar_one_or_none()
+
+    async def authenticate_user(self, db: AsyncSession, username_or_email: str, password: str, request: Request) -> Optional[User]:
+        """Authenticate user with enhanced security features"""
+        
+        # Get user
+        user = await self.get_by_username_or_email(db, username_or_email, username_or_email)
+        if not user:
+            return None
+
+        # Check if account is locked
+        if security_service.is_account_locked(user):
+            raise HTTPException(
+                status_code=status.HTTP_423_LOCKED,
+                detail="Account is temporarily locked due to multiple failed login attempts"
+            )
+
+        # Verify password
+        if not security_service.verify_password(password, user.hashed_password):
+            # Handle failed login
+            await security_service.handle_failed_login(db, user, request)
+            return None
+
+        # Check if account is active
+        if not user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Account is disabled"
+            )
+
+        # Handle successful login
+        await security_service.handle_successful_login(db, user, request)
+        
+        return user
+
+    async def create_session(self, db: AsyncSession, user: User, request: Request) -> UserSession:
+        """Create a new user session"""
+        
+        # Check if user has reached max sessions
+        active_sessions = await self.get_active_sessions(db, user.id)
+        if len(active_sessions) >= user.max_sessions:
+            # Deactivate oldest session
+            oldest_session = min(active_sessions, key=lambda s: s.last_activity)
+            await self.deactivate_session(db, oldest_session.id)
+
+        # Create new session
+        session = UserSession(
+            user_id=user.id,
+            session_token=secrets.token_urlsafe(32),
+            ip_address=request.client.host,
+            user_agent=request.headers.get("user-agent"),
+            device_fingerprint=self._generate_device_fingerprint(request),
+            is_active=True,
+            expires_at=datetime.utcnow() + timedelta(days=30),
+        )
+
+        db.add(session)
+        await db.commit()
+        await db.refresh(session)
+        
+        return session
+
+    async def get_active_sessions(self, db: AsyncSession, user_id: str) -> List[UserSession]:
+        """Get all active sessions for a user"""
+        query = select(UserSession).where(
+            UserSession.user_id == user_id,
+            UserSession.is_active == True,
+            UserSession.expires_at > datetime.utcnow()
+        )
+        result = await db.execute(query)
+        return result.scalars().all()
+
+    async def deactivate_session(self, db: AsyncSession, session_id: str):
+        """Deactivate a session"""
+        query = update(UserSession).where(UserSession.id == session_id).values(is_active=False)
+        await db.execute(query)
+        await db.commit()
+
+    async def update_session_activity(self, db: AsyncSession, session: UserSession):
+        """Update session last activity"""
+        session.last_activity = datetime.utcnow()
+        await db.commit()
+
+    async def assign_role(self, db: AsyncSession, user_id: str, role_name: str, granted_by: str = None):
+        """Assign a role to a user"""
+        from app.db.models.user import UserRole
+        
+        # Get role
+        role_query = select(Role).where(Role.name == role_name)
+        role_result = await db.execute(role_query)
+        role = role_result.scalar_one_or_none()
+        
+        if not role:
+            # Create default role if it doesn't exist
+            role = Role(name=role_name, description=f"Default {role_name} role", is_system_role=True)
+            db.add(role)
+            await db.flush()
+
+        # Check if user already has this role
+        existing_query = select(UserRole).where(
+            UserRole.user_id == user_id,
+            UserRole.role_id == role.id
+        )
+        existing_result = await db.execute(existing_query)
+        if existing_result.scalar_one_or_none():
+            return  # User already has this role
+
+        # Assign role
+        user_role = UserRole(
+            user_id=user_id,
+            role_id=role.id,
+            granted_by=granted_by
+        )
+        db.add(user_role)
+        await db.commit()
+
+    async def get_user_permissions(self, db: AsyncSession, user_id: str) -> List[Permission]:
+        """Get all permissions for a user through their roles"""
+        from app.db.models.user import RolePermission
+        
+        query = select(Permission).join(RolePermission).join(Role).join(UserRole).where(
+            UserRole.user_id == user_id,
+            Role.is_active == True,
+            Permission.is_active == True
+        ).distinct()
+        
+        result = await db.execute(query)
+        return result.scalars().all()
+
+    async def update_user(self, db: AsyncSession, user_id: str, user_update: UserUpdate) -> User:
+        """Update user information"""
+        user = await self.get_by_id(db, user_id)
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        # Update fields
+        for field, value in user_update.dict(exclude_unset=True).items():
+            if field == "password" and value:
+                # Validate and hash new password
+                password_validation = security_service.validate_password_strength(value)
+                if not password_validation["valid"]:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail={
+                            "message": "Password does not meet security requirements",
+                            "errors": password_validation["errors"]
+                        }
+                    )
+                user.hashed_password = security_service.hash_password(value)
+                user.password_changed_at = datetime.utcnow()
+            else:
+                setattr(user, field, value)
+
+        user.updated_at = datetime.utcnow()
+        await db.commit()
+        await db.refresh(user)
+        
+        return user
+
+    async def enable_mfa(self, db: AsyncSession, user_id: str) -> Dict[str, Any]:
+        """Enable MFA for a user"""
+        user = await self.get_by_id(db, user_id)
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        if user.mfa_enabled:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="MFA is already enabled for this user"
+            )
+
+        # Generate MFA secret and backup codes
+        mfa_secret = security_service.generate_mfa_secret()
+        backup_codes = security_service.generate_backup_codes()
+
+        user.mfa_secret = mfa_secret
+        user.backup_codes = json.dumps(backup_codes)
+        user.mfa_enabled = True
+
+        await db.commit()
+
+        # Generate QR code for setup
+        qr_code = security_service.generate_mfa_qr_code(user.email, mfa_secret)
+
+        return {
+            "secret": mfa_secret,
+            "qr_code": qr_code,
+            "backup_codes": backup_codes
+        }
+
+    async def verify_mfa_setup(self, db: AsyncSession, user_id: str, token: str) -> bool:
+        """Verify MFA setup with a token"""
+        user = await self.get_by_id(db, user_id)
+        if not user or not user.mfa_secret:
+            return False
+
+        return security_service.verify_mfa_token(user.mfa_secret, token)
+
+    async def get_security_events(self, db: AsyncSession, user_id: str, limit: int = 50) -> List[SecurityEvent]:
+        """Get security events for a user"""
+        query = select(SecurityEvent).where(
+            SecurityEvent.user_id == user_id
+        ).order_by(SecurityEvent.created_at.desc()).limit(limit)
+        
+        result = await db.execute(query)
+        return result.scalars().all()
+
+    def _generate_device_fingerprint(self, request: Request) -> str:
+        """Generate a device fingerprint based on request headers"""
+        fingerprint_data = {
+            "user_agent": request.headers.get("user-agent"),
+            "accept_language": request.headers.get("accept-language"),
+            "accept_encoding": request.headers.get("accept-encoding"),
+        }
+        
+        # Create a simple hash of the data
+        import hashlib
+        fingerprint_string = json.dumps(fingerprint_data, sort_keys=True)
+        return hashlib.sha256(fingerprint_string.encode()).hexdigest()[:16]
+
+
+# Initialize service
+enhanced_user_service = EnhancedUserService()
 
 class UserService(EnhancedBaseService[User]):
     """

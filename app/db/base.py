@@ -129,6 +129,17 @@ def is_alembic_context():
 # DO NOT import plugin models during normal app startup to avoid conflicts
 if is_alembic_context():
     print("🔧 Alembic context detected - importing plugin models for autogenerate")
+    
+    # Import core models for Alembic
+    try:
+        from app.db.models.user import (
+            User, Role, Permission, UserRole, RolePermission, 
+            UserPasskey, UserSession, SecurityEvent
+        )
+        print("✅ Core authentication models imported for Alembic")
+    except Exception as e:
+        print(f"⚠️ Warning: Could not import core models: {e}")
+    
     import_plugin_models()
 else:
     print("🚀 Normal app startup - skipping plugin model import to avoid conflicts")
