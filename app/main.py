@@ -16,7 +16,8 @@ Sections:
 import os
 import sys
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
 from sqlalchemy.exc import SQLAlchemyError
 import logging
 from app.core.logging import setup_logging
@@ -49,77 +50,151 @@ except ImportError:
 setup_logging()  # Configure loguru and std logging
 settings = get_settings()  # Load environment variables and app config
 
+# Global plugin manager reference
+_plugin_manager = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
     Application lifespan manager for startup and shutdown events.
     """
+    global _plugin_manager
+    
     # Startup
-    logging.info("FastAPI application starting up...")
+    logging.info("🚀 FastAPI application starting up...")
     
     # Import task queue and managers
     from app.utils.task_queue import enhanced_task_queue
     from app.utils.procrastinate_manager import init_procrastinate
+    from app.core.plugin_system import PluginManager
     
     # Start enhanced task queue
     enhanced_task_queue.start(num_workers=8)  # Start with 8 concurrent workers
-    logging.info("Enhanced task queue started with concurrent processing.")
+    logging.info("✅ Enhanced task queue started with concurrent processing.")
     
     # Initialize Procrastinate
     try:
         init_procrastinate()
-        logging.info("Procrastinate PostgreSQL task queue initialized successfully.")
+        logging.info("✅ Procrastinate PostgreSQL task queue initialized successfully.")
     except Exception as e:
-        logging.error(f"Failed to initialize Procrastinate: {e}")
+        logging.error(f"❌ Failed to initialize Procrastinate: {e}")
         # Don't raise - allow app to start even if Procrastinate fails
     
-    logging.info("Startup complete. All task processing systems initialized.")
+    # Initialize enterprise plugin system EARLY in startup
+    try:
+        logging.info("🔌 Initializing enterprise plugin system...")
+        _plugin_manager = PluginManager(app, app_version="1.0.0")
+        
+        # Discover and load plugins
+        plugin_search_paths = [
+            "app/plugins",  # Built-in plugins
+            "plugins",      # External plugins directory (if it exists)
+        ]
+        
+        # Step 1: Discover and load plugins
+        await _plugin_manager.discover_and_load_plugins(plugin_search_paths)
+        logging.info(f"📂 Discovered plugins from paths: {plugin_search_paths}")
+        
+        # Step 2: Initialize plugins (this registers routes and middleware)
+        await _plugin_manager.initialize_plugins()
+        logging.info("🔧 Plugins initialized and routes registered")
+        
+        # Step 3: Start plugins
+        await _plugin_manager.startup_plugins()
+        logging.info("🟢 Plugins started successfully")
+        
+        # Emit application startup event
+        _plugin_manager.context.event_bus.emit("application_startup")
+        
+        # Log plugin status for debugging
+        plugin_status = _plugin_manager.get_plugin_status()
+        for name, status in plugin_status.items():
+            logging.info(f"📊 Plugin {name}: {status['status']}")
+        
+        logging.info("✅ Enterprise plugin system initialized successfully.")
+        
+    except Exception as e:
+        logging.error(f"❌ Failed to initialize plugin system: {e}")
+        import traceback
+        logging.error(traceback.format_exc())
+        # Don't raise - allow app to start even if plugins fail
+    
+    logging.info("🎉 Startup complete. All systems initialized.")
     
     yield
     
     # Shutdown
-    logging.info("FastAPI application shutting down...")
+    logging.info("🛑 FastAPI application shutting down...")
     
     from app.utils.concurrent_utils import shutdown_concurrent_manager
     
+    # Shutdown plugins
+    try:
+        if _plugin_manager:
+            await _plugin_manager.shutdown_plugins()
+            logging.info("🔌 Plugin system shutdown complete.")
+    except Exception as e:
+        logging.error(f"❌ Error shutting down plugin system: {e}")
+    
     enhanced_task_queue.stop()
     await shutdown_concurrent_manager()
-    logging.info("Shutdown complete. All concurrent processing stopped.")
+    logging.info("✅ Shutdown complete. All concurrent processing stopped.")
 
 
 # --- FastAPI app instance ---
 app = FastAPI(
-    title="FastAPI Modular Boilerplate",
+    title="FastAPI Enterprise Plugin System",
     version="1.0.0",
     description="""
-    A modular and scalable FastAPI boilerplate for rapid backend development.
-    Features async SQLAlchemy, Alembic migrations, JWT authentication, role-based permissions, 
-    concurrent processing, enhanced task queues, Procrastinate PostgreSQL-based task persistence,
-    response compression (gzip), HTTP/2 support, API versioning, and advanced pagination.
+    🚀 **FastAPI Enterprise Plugin System with Dynamic Route Discovery**
+    
+    A modular and scalable FastAPI application featuring:
+    - 🔌 **Dynamic Plugin System** - Hot-pluggable modules with automatic discovery
+    - 🏗️ **Enterprise Architecture** - Scalable, maintainable, and production-ready
+    - 📊 **Monitoring & Analytics** - Built-in performance monitoring and health checks
+    - 🔄 **Background Tasks** - Procrastinate-powered task queue with PostgreSQL persistence
+    - 🛡️ **Security** - JWT authentication, role-based permissions, security middleware
+    - 📱 **Auto-Generated APIs** - Complete CRUD operations with validation
+    - 🚄 **High Performance** - Async SQLAlchemy, connection pooling, response compression
+    - 📖 **Interactive Documentation** - Swagger UI with comprehensive API docs
+    
+    **Plugin Features:**
+    - ✅ Automatic route registration and Swagger integration
+    - ✅ Database models with migrations
+    - ✅ Pydantic schemas with validation
+    - ✅ Service layer with repository pattern
+    - ✅ Event-driven architecture
+    - ✅ Background task integration
+    - ✅ Bulk operations support
+    - ✅ Health monitoring
+    
+    **Generated Endpoints:**
+    All plugins automatically generate REST endpoints that appear in this documentation.
+    Navigate through the sections below to explore the available APIs.
     """,
     contact={
-        "name": "Your Team or Name",
-        "email": "your@email.com",
-        "url": "https://yourprojectsite.com"
+        "name": "FastAPI Enterprise Team",
+        "email": "enterprise@fastapi.dev",
+        "url": "https://fastapi-enterprise.dev"
     },
     license_info={
         "name": "MIT License",
         "url": "https://opensource.org/licenses/MIT"
     },
-    terms_of_service="https://yourprojectsite.com/terms/",
+    terms_of_service="https://fastapi-enterprise.dev/terms/",
     docs_url="/docs",
     redoc_url="/redoc",
     openapi_tags=[
-        {"name": "Users", "description": "Operations with users: CRUD, authentication, roles."},
-        {"name": "Auth", "description": "Authentication endpoints: login, token, etc."},
-        {"name": "Health", "description": "Health and readiness checks for orchestration."},
-        {"name": "Bulk Operations", "description": "High-performance bulk operations with concurrent processing."},
-        {"name": "Procrastinate Tasks", "description": "Persistent, distributed task queue using PostgreSQL."},
-        {"name": "v1.0", "description": "API version 1.0 endpoints (current stable version)."},
-        {"name": "v2.0", "description": "API version 2.0 endpoints (latest features)."},
-        {"name": "Performance", "description": "Performance monitoring and optimization features."},
-        {"name": "Compression", "description": "Response compression and optimization."},
+        {"name": "System", "description": "🔧 System health, status, and monitoring endpoints"},
+        {"name": "Authentication", "description": "🔐 User authentication and authorization"},
+        {"name": "Users", "description": "👥 User management operations"},
+        {"name": "Plugins", "description": "🔌 Plugin management and status"},
+        {"name": "Tasks", "description": "⚙️ Background task management"},
+        {"name": "Monitoring", "description": "📊 Application monitoring and metrics"},
+        {"name": "Cache", "description": "🗄️ Caching operations and management"},
+        {"name": "Products", "description": "🛍️ Product management (demo plugin)"},
+        {"name": "Bulk Operations", "description": "📦 High-performance bulk operations"},
+        {"name": "v1.0", "description": "📋 API version 1.0 endpoints"},
     ],
     lifespan=lifespan
 )
@@ -132,133 +207,139 @@ try:
     
     # Setup comprehensive middleware (compression, security, performance monitoring)
     setup_middleware(app)
-    logging.info("Advanced features configured: compression, security headers, performance monitoring, rate limiting")
+    logging.info("✅ Advanced features configured: compression, security headers, performance monitoring, rate limiting")
 except ImportError:
     ADVANCED_FEATURES_AVAILABLE = False
-    logging.warning("Advanced middleware features not available")
+    logging.warning("⚠️ Advanced middleware features not available")
 
-# --- Production middleware and configurations ---
-# Temporarily disabled due to weak reference issue with connection tracking
-# if PRODUCTION_FEATURES_AVAILABLE:
-#     # Add connection tracking middleware for graceful shutdown
-#     app.add_middleware(ConnectionTrackingMiddleware)
-#     
-#     # Setup graceful shutdown with database engine
-#     setup_graceful_shutdown(
-#         app,
-#         database_engine=engine,
-#         shutdown_timeout=30,
-#         cleanup_callbacks=[]
-#     )
-#     
-#     # Setup comprehensive health checks
-#     health_checker = setup_health_checks(
-#         app,
-#         database_engine=engine,
-#         redis_url=os.getenv("REDIS_URL", "redis://localhost:6379"),
-#         external_services=[
-#             # Add any external services you depend on
-#             # "https://api.example.com/health"
-#         ]
-#     )
-#     
-#     logging.info("Production features configured: graceful shutdown and health checks")
-
-# --- Middleware for request/response logging ---
-from loguru import logger
-import time
-from starlette.requests import Request
-
-@app.middleware("http")
-async def log_requests(request: Request, call_next):
-    """
-    Middleware to log each HTTP request and response with timing info.
-    """
-    start_time = time.time()
-    response = await call_next(request)
-    process_time = (time.time() - start_time) * 1000
-    logger.info(
-        f"{request.method} {request.url.path} - Status: {response.status_code} - Time: {process_time:.2f}ms"
-    )
-    return response
-
-# --- Register centralized exception handlers ---
+# --- Exception handlers ---
 app.add_exception_handler(AppException, app_exception_handler)
 app.add_exception_handler(HTTPException, http_exception_handler)
 app.add_exception_handler(SQLAlchemyError, sqlalchemy_exception_handler)
 app.add_exception_handler(Exception, generic_exception_handler)
 
-# --- Mount versioned API router ---
+# --- API router mounting ---
 app.include_router(api_router, prefix="/api/v1")
 
-# --- Health check endpoints for orchestration and monitoring ---
-@app.get("/", tags=["Health"], description="Welcome message and basic service status.")
+# --- Request logging middleware ---
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    """Log all requests for debugging and monitoring."""
+    start_time = time.time()
+    
+    # Process request
+    response = await call_next(request)
+    
+    # Calculate processing time
+    process_time = time.time() - start_time
+    
+    # Log the request
+    logging.info(
+        f"{request.method} {request.url.path} - "
+        f"Status: {response.status_code} - "
+        f"Time: {process_time:.4f}s"
+    )
+    
+    return response
+
+# --- Root endpoints ---
+@app.get("/", tags=["System"], summary="🏠 Welcome", description="Welcome message and system overview")
 def root():
     """
-    Root endpoint for health checks and welcome message.
+    🏠 **Welcome to FastAPI Enterprise Plugin System**
+    
+    This endpoint provides basic system information and navigation.
     """
-    return {"status": "ok", "message": "Welcome to the FastAPI Modular Boilerplate with Production Features!"}
+    return {
+        "message": "🚀 Welcome to FastAPI Enterprise Plugin System!",
+        "version": "1.0.0",
+        "status": "running",
+        "features": [
+            "🔌 Dynamic Plugin System",
+            "📊 Real-time Monitoring", 
+            "🛡️ Enterprise Security",
+            "⚡ High Performance",
+            "📖 Auto-generated APIs"
+        ],
+        "endpoints": {
+            "docs": "/docs",
+            "redoc": "/redoc", 
+            "health": "/health",
+            "ready": "/ready",
+            "plugins": "/api/v1/plugins/status"
+        }
+    }
 
-# Basic health endpoint (fallback if production health checks not available)
-if not PRODUCTION_FEATURES_AVAILABLE:
-    @app.get("/health", tags=["Health"], description="Basic liveness probe for orchestration.")
+if ADVANCED_FEATURES_AVAILABLE:
+    import time
+    
+    @app.get("/health", tags=["System"], summary="💓 Health Check", description="Liveness probe for orchestration")
     def health():
         """
-        Liveness probe endpoint for orchestration/monitoring (returns 200 if app is running).
+        💓 **System Health Check**
+        
+        Basic liveness probe for container orchestration and load balancers.
+        Returns 200 if the application is running.
         """
-        return {"status": "healthy"}
+        return {"status": "healthy", "timestamp": time.time()}
 
-    @app.get("/ready", tags=["Health"], description="Readiness probe for orchestration (checks DB connection).")
+    @app.get("/ready", tags=["System"], summary="✅ Readiness Check", description="Readiness probe with dependency checks")
     async def ready():
         """
-        Readiness probe endpoint for orchestration/monitoring.
-        Attempts a simple DB connection to verify app is ready to serve traffic.
+        ✅ **System Readiness Check**
+        
+        Readiness probe that checks if the application is ready to serve traffic.
+        Validates database connectivity and essential services.
         """
-        from app.db.session import get_db
         try:
-            # Try to acquire and release a DB connection
-            db_gen = get_db()
-            if hasattr(db_gen, "__anext__"):  # async generator
-                db = await db_gen.__anext__()
-                if hasattr(db, "close"):
-                    await db.close()
-            else:
-                db = next(db_gen)
-                if hasattr(db, "close"):
-                    db.close()
-            return {"status": "ready"}
+            # Test database connection
+            from sqlalchemy import text
+            from app.db.session import get_db
+            
+            async for db in get_db():
+                await db.execute(text("SELECT 1"))
+                break
+            
+            # Check plugin system
+            plugin_ready = _plugin_manager is not None if _plugin_manager else False
+            
+            return {
+                "status": "ready",
+                "timestamp": time.time(),
+                "checks": {
+                    "database": "✅ connected",
+                    "plugins": "✅ loaded" if plugin_ready else "⚠️ not loaded"
+                }
+            }
         except Exception as e:
-            from fastapi import status
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail={"status": "not ready", "detail": str(e)}
-            )
+            logging.error(f"Readiness check failed: {e}")
+            raise HTTPException(status_code=503, detail="Service not ready")
 
+# --- Additional plugin status endpoint ---
+@app.get("/plugins/status", tags=["Plugins"], summary="🔌 Plugin Status", description="Get status of all plugins")
+async def get_plugin_status():
+    """
+    🔌 **Plugin Status Overview**
+    
+    Returns the current status of all discovered and loaded plugins.
+    """
+    if not _plugin_manager:
+        return {"message": "Plugin system not initialized", "plugins": {}}
+    
+    status = _plugin_manager.get_plugin_status()
+    return {
+        "message": "Plugin system operational",
+        "total_plugins": len(status),
+        "plugins": status
+    }
 
-# --- Uvicorn run block (for direct execution) ---
+# --- Development server (optional, for direct execution) ---
 if __name__ == "__main__":
     import uvicorn
-    
-    # Configuration for development vs production
-    if os.getenv("ENVIRONMENT", "development").lower() == "production":
-        # Production configuration - should use Gunicorn instead
-        logging.warning("Running in production mode with uvicorn directly is not recommended. Use Gunicorn + Uvicorn workers.")
-        uvicorn.run(
-            "app.main:app",
-            host="0.0.0.0",
-            port=8000,
-            workers=1,
-            access_log=True,
-            use_colors=False,
-            log_config=None
-        )
-    else:
-        # Development configuration
-        uvicorn.run(
-            "app.main:app",
-            host="127.0.0.1",
-            port=8000,
-            reload=True,
-            reload_dirs=["app"],
-            access_log=True
-        )
+    uvicorn.run(
+        "app.main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=True,
+        log_level="info"
+    )

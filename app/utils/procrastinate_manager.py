@@ -465,6 +465,24 @@ class ProcrastinateManager:
 procrastinate_manager = ProcrastinateManager()
 
 
+def get_procrastinate_app():
+    """Get the procrastinate app instance"""
+    return procrastinate_app
+
+
+def register_plugin_blueprint(blueprint, namespace: str = None):
+    """Register a plugin's Procrastinate blueprint with the main app"""
+    try:
+        if namespace:
+            procrastinate_app.add_tasks_from(blueprint, namespace=namespace)
+            logger.info(f"Registered plugin blueprint with namespace: {namespace}")
+        else:
+            procrastinate_app.add_tasks_from(blueprint)
+            logger.info("Registered plugin blueprint without namespace")
+    except Exception as e:
+        logger.warning(f"Failed to register plugin blueprint: {e}")
+
+
 def init_procrastinate():
     """Initialize Procrastinate for the application startup"""
     procrastinate_manager._initialize_sync()

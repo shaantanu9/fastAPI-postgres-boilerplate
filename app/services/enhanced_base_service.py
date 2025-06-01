@@ -423,40 +423,274 @@ class EnhancedBaseService(BaseService[ModelType]):
     async def health_check_parallel(self, db: AsyncSession) -> Dict[str, Any]:
         """
         Perform parallel health checks on the service.
-        
-        Returns:
-            Dictionary with health check results
         """
-        start_time = time.time()
-        
         async def check_db_connection():
             try:
-                await self.count(db)
+                await db.execute(select(1))
                 return True
             except Exception:
                 return False
         
         async def check_table_exists():
             try:
-                await db.execute(select(self.model).limit(1))
+                await db.execute(select(func.count()).select_from(self.model))
                 return True
             except Exception:
                 return False
         
-        # Run health checks in parallel
-        checks = [
-            ('db_connection', check_db_connection()),
-            ('table_exists', check_table_exists())
-        ]
+        checks = [check_db_connection(), check_table_exists()]
+        results = await asyncio.gather(*checks, return_exceptions=True)
         
-        results = {}
-        for name, check_coro in checks:
-            try:
-                results[name] = await check_coro
-            except Exception as e:
-                results[name] = f"Error: {str(e)}"
-        
-        results['response_time'] = time.time() - start_time
-        results['service'] = self.model.__name__
-        
-        return results 
+        return {
+            "service": self.model.__name__,
+            "database_connection": results[0] if not isinstance(results[0], Exception) else False,
+            "table_exists": results[1] if not isinstance(results[1], Exception) else False,
+            "status": "healthy" if all(results) else "unhealthy"
+        }
+
+    # Bridge methods for scaffold-generated plugins compatibility
+    # These methods provide expected signatures that match scaffold-generated code
+    # They use a dependency injection pattern to get database sessions
+    
+    async def _get_db_session(self):
+        """Get database session using AsyncSessionLocal directly"""
+        from app.db.session import AsyncSessionLocal
+        return AsyncSessionLocal()
+    
+    async def get_all(self, skip: int = 0, limit: int = 100, filters: Optional[Dict[str, Any]] = None) -> List[ModelType]:
+        """
+        Get all records with pagination - bridges to BaseService.paginate() or all()
+        Compatible with scaffold-generated plugins expecting get_all(skip, limit)
+        """
+        db = await self._get_db_session()
+        try:
+            if skip == 0 and limit == 100:
+                # Use the all() method for default parameters
+                return await self.all(db, filters)
+            else:
+                # Use pagination for custom skip/limit
+                page = (skip // limit) + 1
+                return await self.paginate(db, page=page, page_size=limit, filters=filters)
+        except Exception as e:
+            logger.error(f"Error in get_all: {e}")
+            raise
+        finally:
+            await db.close()
+    
+    async def get(self, id: int) -> Optional[ModelType]:
+        """
+        Get a single record by ID - bridges to BaseService.find_by_id()
+        Compatible with scaffold-generated plugins expecting get(id)
+        """
+        db = await self._get_db_session()
+        try:
+            return await self.find_by_id(db, id)
+        except Exception as e:
+            logger.error(f"Error in get: {e}")
+            raise
+        finally:
+            await db.close()
+    
+    async def create(self, **kwargs) -> ModelType:
+        """
+        Create a new record - bridges to BaseService.add()
+        Compatible with scaffold-generated plugins expecting create(**kwargs)
+        """
+        db = await self._get_db_session()
+        try:
+            result = await self.add(db, kwargs)
+            await db.commit()  # Explicitly commit the transaction
+            await db.refresh(result)  # Refresh to get updated data
+            return result
+        except Exception as e:
+            await db.rollback()  # Rollback on error
+            logger.error(f"Error in create: {e}")
+            raise
+        finally:
+            await db.close()
+    
+    async def update_by_id(self, id: int, **kwargs) -> Optional[ModelType]:
+        """
+        Update a record by ID - bridges to BaseService.update_one()
+        Compatible with scaffold-generated plugins expecting update(id, **kwargs)
+        """
+        db = await self._get_db_session()
+        try:
+            result = await self.update_one(db, {"id": id}, kwargs)
+            if result:
+                await db.commit()  # Explicitly commit the transaction
+                await db.refresh(result)  # Refresh to get updated data
+            return result
+        except Exception as e:
+            await db.rollback()  # Rollback on error
+            logger.error(f"Error in update_by_id: {e}")
+            raise
+        finally:
+            await db.close()
+    
+    # Alias for backward compatibility - use different name to avoid conflict
+    async def update_record(self, id: int, **kwargs) -> Optional[ModelType]:
+        """Update a record by ID - alias for update_by_id"""
+        return await self.update_by_id(id, **kwargs)
+    
+    # Override the update method to handle both signatures
+    async def update(self, *args, **kwargs):
+        """
+        Smart update method that handles both base service and bridge signatures
+        - If called with (db, db_obj, obj_in) -> calls parent update
+        - If called with (id, **kwargs) -> calls update_by_id
+        """
+        if len(args) == 3 and not kwargs:
+            # Base service signature: update(db, db_obj, obj_in)
+            return await super().update(*args)
+        elif len(args) == 1 and kwargs:
+            # Bridge signature: update(id, **kwargs)
+            return await self.update_by_id(args[0], **kwargs)
+        else:
+            raise ValueError(f"Invalid update signature: args={args}, kwargs={kwargs}")
+    
+    async def delete_by_id(self, id: int) -> bool:
+        """
+        Delete a record by ID - bridges to BaseService.delete_one()
+        Compatible with scaffold-generated plugins expecting delete(id)
+        """
+        db = await self._get_db_session()
+        try:
+            result = await self.delete_one(db, {"id": id})
+            if result:
+                await db.commit()  # Explicitly commit the transaction
+            return result
+        except Exception as e:
+            await db.rollback()  # Rollback on error
+            logger.error(f"Error in delete_by_id: {e}")
+            raise
+        finally:
+            await db.close()
+    
+    # Override the delete method to handle both signatures
+    async def delete(self, *args, **kwargs):
+        """
+        Smart delete method that handles both base service and bridge signatures
+        - If called with (db, db_obj) -> calls parent delete
+        - If called with (id) -> calls delete_by_id
+        """
+        if len(args) == 2 and not kwargs:
+            # Base service signature: delete(db, db_obj)
+            return await super().delete(*args)
+        elif len(args) == 1 and not kwargs:
+            # Bridge signature: delete(id)
+            return await self.delete_by_id(args[0])
+        else:
+            raise ValueError(f"Invalid delete signature: args={args}, kwargs={kwargs}")
+    
+    async def get_by_field(self, field_name: str, value: Any) -> Optional[ModelType]:
+        """
+        Get a record by a specific field value
+        Compatible with scaffold-generated plugins expecting get_by_field(field, value)
+        """
+        db = await self._get_db_session()
+        try:
+            return await self.find_one(db, {field_name: value})
+        except Exception as e:
+            logger.error(f"Error in get_by_field: {e}")
+            raise
+        finally:
+            await db.close()
+    
+    async def search_by_text(self, query: str, fields: List[str], limit: int = 10) -> List[ModelType]:
+        """
+        Search records by text in specified fields
+        Compatible with scaffold-generated plugins expecting text search
+        """
+        db = await self._get_db_session()
+        try:
+            from sqlalchemy import or_
+            stmt = select(self.model)
+            # Create LIKE conditions for each field
+            conditions = []
+            for field in fields:
+                if hasattr(self.model, field):
+                    field_attr = getattr(self.model, field)
+                    conditions.append(field_attr.like(f"%{query}%"))
+            
+            if conditions:
+                stmt = stmt.where(or_(*conditions))
+            
+            stmt = stmt.limit(limit)
+            result = await db.execute(stmt)
+            return result.scalars().all()
+        except Exception as e:
+            logger.error(f"Search error: {e}")
+            return []
+        finally:
+            await db.close()
+    
+    async def bulk_create(self, items: List[Dict[str, Any]]) -> List[ModelType]:
+        """
+        Bulk create records - bridges to BaseService.bulk_add()
+        Compatible with scaffold-generated plugins expecting bulk_create(items)
+        """
+        db = await self._get_db_session()
+        try:
+            results = await self.bulk_add(db, items)
+            await db.commit()  # Explicitly commit the transaction
+            # Refresh all created items
+            for result in results:
+                await db.refresh(result)
+            return results
+        except Exception as e:
+            await db.rollback()  # Rollback on error
+            logger.error(f"Error in bulk_create: {e}")
+            raise
+        finally:
+            await db.close()
+    
+    async def bulk_update_by_ids(self, updates: List[Dict[str, Any]]) -> List[ModelType]:
+        """
+        Bulk update records by their IDs
+        Compatible with scaffold-generated plugins expecting bulk updates
+        """
+        db = await self._get_db_session()
+        try:
+            results = []
+            for update_data in updates:
+                if 'id' in update_data:
+                    item_id = update_data.pop('id')
+                    result = await self.update_one(db, {"id": item_id}, update_data)
+                    if result:
+                        results.append(result)
+            
+            if results:
+                await db.commit()  # Explicitly commit the transaction
+                # Refresh all updated items
+                for result in results:
+                    await db.refresh(result)
+            return results
+        except Exception as e:
+            await db.rollback()  # Rollback on error
+            logger.error(f"Error in bulk_update_by_ids: {e}")
+            raise
+        finally:
+            await db.close()
+    
+    async def bulk_delete_by_ids(self, ids: List[int]) -> int:
+        """
+        Bulk delete records by their IDs
+        Compatible with scaffold-generated plugins expecting bulk deletes
+        """
+        db = await self._get_db_session()
+        try:
+            count = 0
+            for item_id in ids:
+                if await self.delete_one(db, {"id": item_id}):
+                    count += 1
+            
+            if count > 0:
+                await db.commit()  # Explicitly commit the transaction
+            return count
+        except Exception as e:
+            await db.rollback()  # Rollback on error
+            logger.error(f"Error in bulk_delete_by_ids: {e}")
+            raise
+        finally:
+            await db.close() 
