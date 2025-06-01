@@ -26,6 +26,8 @@ from .templates import (
     ModelsTemplate, SchemasTemplate, ServicesTemplate,
     RoutesTemplate, TasksTemplate, InitTemplate
 )
+from .templates.auth_routes_template import AuthRoutesTemplate
+from .templates.auth_models_template import AuthModelsTemplate
 
 
 class ScaffoldGeneratorV4:
@@ -47,8 +49,15 @@ class ScaffoldGeneratorV4:
             'tasks': TasksTemplate(),
             'init': InitTemplate()
         }
+        
+        # Initialize auth templates
+        self.auth_templates = {
+            'models': AuthModelsTemplate(),
+            'routes': AuthRoutesTemplate()
+        }
     
-    def add_plugin(self, model_name: str, fields: list, with_tasks: bool = False, with_bulk: bool = False):
+    def add_plugin(self, model_name: str, fields: list, with_tasks: bool = False, with_bulk: bool = False, 
+                  with_auth: bool = False, auth_config: dict = None):
         """Generate a new modular plugin"""
         print(f"🚀 Generating {model_name} Plugin with Modular Architecture")
         print("=" * 55)
@@ -75,7 +84,7 @@ class ScaffoldGeneratorV4:
             
             # 4. Generate modular files
             print(f"\n🏗️ Step 4: Generating Modular Files")
-            self._generate_plugin_files(plugin_dir, model_name, validated_fields, with_tasks, with_bulk)
+            self._generate_plugin_files(plugin_dir, model_name, validated_fields, with_tasks, with_bulk, with_auth, auth_config)
             
             # 5. Generate migration
             print(f"\n🗄️ Step 5: Database Migration")
@@ -105,28 +114,41 @@ class ScaffoldGeneratorV4:
         return plugin_dir
     
     def _generate_plugin_files(self, plugin_dir: Path, model_name: str, validated_fields: list, 
-                             with_tasks: bool, with_bulk: bool):
+                             with_tasks: bool, with_bulk: bool, with_auth: bool = False, auth_config: dict = None):
         """Generate all modular plugin files"""
         
-        # Generate models.py
-        models_content = self.templates['models'].generate(model_name, validated_fields, self.field_validator)
-        (plugin_dir / "models.py").write_text(models_content)
-        print("  ✅ models.py")
+        # Choose templates based on authentication requirement
+        if with_auth:
+            print("  🔐 Using authentication-enabled templates")
+            # Generate models.py with auth features
+            models_content = self.auth_templates['models'].generate(model_name, validated_fields, self.field_validator, auth_config)
+            (plugin_dir / "models.py").write_text(models_content)
+            print("  ✅ models.py (with authentication)")
+            
+            # Generate routes.py with auth features
+            routes_content = self.auth_templates['routes'].generate(model_name, validated_fields, auth_config, with_bulk)
+            (plugin_dir / "routes.py").write_text(routes_content)
+            print("  ✅ routes.py (with authentication)")
+        else:
+            # Generate models.py (standard)
+            models_content = self.templates['models'].generate(model_name, validated_fields, self.field_validator)
+            (plugin_dir / "models.py").write_text(models_content)
+            print("  ✅ models.py")
+            
+            # Generate routes.py (standard)
+            routes_content = self.templates['routes'].generate(model_name, validated_fields, with_bulk)
+            (plugin_dir / "routes.py").write_text(routes_content)
+            print("  ✅ routes.py")
         
-        # Generate schemas.py
+        # Generate schemas.py (always use standard for now)
         schemas_content = self.templates['schemas'].generate(model_name, validated_fields, self.field_validator)
         (plugin_dir / "schemas.py").write_text(schemas_content)
         print("  ✅ schemas.py")
         
-        # Generate services.py
+        # Generate services.py (always use standard for now)
         services_content = self.templates['services'].generate(model_name, validated_fields)
         (plugin_dir / "services.py").write_text(services_content)
         print("  ✅ services.py")
-        
-        # Generate routes.py
-        routes_content = self.templates['routes'].generate(model_name, validated_fields, with_bulk)
-        (plugin_dir / "routes.py").write_text(routes_content)
-        print("  ✅ routes.py")
         
         # Generate tasks.py (if requested)
         if with_tasks:
@@ -607,6 +629,247 @@ class ScaffoldGeneratorV4:
             print(f"\n❌ Cleanup failed: {e}")
             print(f"💡 You may need to manually clean up remaining items")
             return False
+    
+    def auth_check(self):
+        """Check authentication system compatibility"""
+        print("🔐 Authentication System Compatibility Check")
+        print("=" * 45)
+        
+        checks = []
+        
+        # Check if authentication components exist
+        print("🔍 Checking authentication components...")
+        auth_components = [
+            ("JWT Service", "app/core/jwt.py"),
+            ("Security Service", "app/core/security.py"),
+            ("User Model", "app/db/models/user.py"),
+            ("Auth Routes", "app/api/v1/endpoints/auth.py"),
+            ("User Service", "app/services/user_service.py")
+        ]
+        
+        for component_name, component_path in auth_components:
+            exists = Path(component_path).exists()
+            checks.append((component_name, exists))
+            status = "✅" if exists else "❌"
+            print(f"   {status} {component_name}: {component_path}")
+        
+        # Check authentication dependencies
+        print("\n🔍 Checking authentication dependencies...")
+        try:
+            from app.core.jwt import jwt_service
+            print("   ✅ JWT Service importable")
+            checks.append(("JWT Service Import", True))
+        except ImportError as e:
+            print(f"   ❌ JWT Service import failed: {e}")
+            checks.append(("JWT Service Import", False))
+        
+        try:
+            from app.core.security import security_service
+            print("   ✅ Security Service importable")
+            checks.append(("Security Service Import", True))
+        except ImportError as e:
+            print(f"   ❌ Security Service import failed: {e}")
+            checks.append(("Security Service Import", False))
+        
+        # Check database models
+        print("\n🔍 Checking database models...")
+        try:
+            from app.db.models.user import User
+            print("   ✅ User model importable")
+            checks.append(("User Model Import", True))
+        except ImportError as e:
+            print(f"   ❌ User model import failed: {e}")
+            checks.append(("User Model Import", False))
+        
+        # Summary
+        passed = sum(1 for _, status in checks if status)
+        total = len(checks)
+        
+        print(f"\n📊 Authentication Check Summary")
+        print(f"   ✅ Passed: {passed}")
+        print(f"   ❌ Failed: {total - passed}")
+        print(f"   📈 Success Rate: {(passed/total)*100:.1f}%")
+        
+        if passed == total:
+            print("\n🎉 Authentication system is ready for enhanced plugin generation!")
+            return True
+        else:
+            print("\n⚠️ Authentication system needs setup before using --with-auth")
+            print("💡 Run the main application to ensure all auth components are initialized")
+            return False
+    
+    def add_authentication_to_plugin(self, model_name: str, auth_config: dict):
+        """Add authentication to an existing plugin"""
+        print(f"🔐 Adding Authentication to {model_name} Plugin")
+        print("=" * 45)
+        
+        import re
+        snake_name = re.sub(r'(?<!^)(?=[A-Z])', '_', model_name).lower()
+        plugin_dir = Path(f"app/plugins/{snake_name}_plugin")
+        
+        if not plugin_dir.exists():
+            print(f"❌ Plugin not found: {plugin_dir}")
+            return False
+        
+        try:
+            # Backup existing files
+            print("📋 Step 1: Backing up existing files")
+            backup_dir = plugin_dir / "backup"
+            backup_dir.mkdir(exist_ok=True)
+            
+            for file_name in ["models.py", "routes.py"]:
+                source = plugin_dir / file_name
+                if source.exists():
+                    backup = backup_dir / f"{file_name}.backup"
+                    backup.write_text(source.read_text())
+                    print(f"   ✅ Backed up {file_name}")
+            
+            # Read existing fields from models.py
+            print("\n🔍 Step 2: Analyzing existing model")
+            fields = self._extract_fields_from_model(plugin_dir / "models.py")
+            print(f"   ✅ Found {len(fields)} existing fields")
+            
+            # Generate enhanced model with auth
+            print("\n🏗️ Step 3: Generating enhanced model")
+            enhanced_config = {
+                "enable_auth": True,
+                "enable_ownership": auth_config.get("enable_ownership", False),
+                "enable_audit": auth_config.get("enable_audit", True),
+                "enable_soft_delete": auth_config.get("enable_soft_delete", False),
+                "enable_versioning": False
+            }
+            
+            models_content = self.auth_templates['models'].generate(
+                model_name, fields, self.field_validator, enhanced_config
+            )
+            (plugin_dir / "models.py").write_text(models_content)
+            print("   ✅ Enhanced models.py with authentication")
+            
+            # Generate enhanced routes with auth
+            print("\n🔗 Step 4: Generating enhanced routes")
+            routes_config = {
+                "enable_auth": True,
+                "require_permissions": True,
+                "enable_audit": auth_config.get("enable_audit", True),
+                "enable_rate_limiting": True,
+                "owner_based_access": auth_config.get("enable_ownership", False),
+                "require_roles": auth_config.get("require_roles", [])
+            }
+            
+            routes_content = self.auth_templates['routes'].generate(
+                model_name, fields, routes_config, False  # Assume no bulk for existing plugins
+            )
+            (plugin_dir / "routes.py").write_text(routes_content)
+            print("   ✅ Enhanced routes.py with authentication")
+            
+            # Generate migration for auth fields
+            print("\n🗄️ Step 5: Generating migration for auth fields")
+            migration_success = self.migration_manager.generate_migration(f"{model_name}_add_auth")
+            
+            if migration_success:
+                print(f"\n🎉 Authentication successfully added to {model_name} Plugin!")
+                print(f"📂 Backups saved in: {backup_dir}")
+                print(f"🔧 Remember to run: alembic upgrade head")
+                return True
+            else:
+                print(f"\n⚠️ Authentication added but migration failed")
+                print(f"💡 You may need to manually create migration for auth fields")
+                return True
+                
+        except Exception as e:
+            print(f"\n❌ Failed to add authentication: {e}")
+            return False
+    
+    def generate_with_auth_preset(self, preset: str, model_name: str, fields: list, 
+                                with_tasks: bool = False, with_bulk: bool = False):
+        """Generate plugin with authentication presets"""
+        print(f"🔐 Generating {model_name} Plugin with '{preset}' Authentication Preset")
+        print("=" * 60)
+        
+        # Define preset configurations
+        presets = {
+            "basic": {
+                "enable_auth": True,
+                "enable_ownership": False,
+                "enable_audit": True,
+                "enable_soft_delete": False,
+                "enable_versioning": False,
+                "enable_rate_limiting": True,
+                "require_permissions": True,
+                "require_roles": [],
+                "owner_based_access": False
+            },
+            "secure": {
+                "enable_auth": True,
+                "enable_ownership": True,
+                "enable_audit": True,
+                "enable_soft_delete": True,
+                "enable_versioning": False,
+                "enable_rate_limiting": True,
+                "require_permissions": True,
+                "require_roles": ["user"],
+                "owner_based_access": True
+            },
+            "enterprise": {
+                "enable_auth": True,
+                "enable_ownership": True,
+                "enable_audit": True,
+                "enable_soft_delete": True,
+                "enable_versioning": True,
+                "enable_rate_limiting": True,
+                "require_permissions": True,
+                "require_roles": ["user"],
+                "owner_based_access": True
+            }
+        }
+        
+        auth_config = presets.get(preset)
+        if not auth_config:
+            print(f"❌ Unknown preset: {preset}")
+            return False
+        
+        print(f"📋 Using preset configuration:")
+        for key, value in auth_config.items():
+            print(f"   • {key}: {value}")
+        
+        return self.add_plugin(model_name, fields, with_tasks, with_bulk, True, auth_config)
+    
+    def _extract_fields_from_model(self, model_file: Path) -> list:
+        """Extract field definitions from existing model file"""
+        if not model_file.exists():
+            return []
+        
+        # This is a simplified field extraction
+        # In a real implementation, you'd parse the Python AST
+        content = model_file.read_text()
+        fields = []
+        
+        # Extract basic field patterns (simplified)
+        import re
+        field_pattern = r'(\w+)\s*=\s*Column\((.*?)\)'
+        matches = re.findall(field_pattern, content, re.MULTILINE)
+        
+        for field_name, column_def in matches:
+            if field_name not in ['id', 'created_at', 'updated_at']:
+                # Extract basic type information
+                if 'String' in column_def:
+                    field_type = 'str'
+                elif 'Integer' in column_def:
+                    field_type = 'int'
+                elif 'Boolean' in column_def:
+                    field_type = 'bool'
+                elif 'Float' in column_def:
+                    field_type = 'float'
+                else:
+                    field_type = 'str'  # Default
+                
+                fields.append({
+                    'name': field_name,
+                    'type': field_type,
+                    'constraints': []
+                })
+        
+        return fields
 
 
 def main():
@@ -635,6 +898,13 @@ Examples:
     add_parser.add_argument('fields', nargs='*', help='Field definitions (name:type[:constraints])')
     add_parser.add_argument('--with-tasks', action='store_true', help='Include background tasks')
     add_parser.add_argument('--with-bulk', action='store_true', help='Include bulk operations')
+    add_parser.add_argument('--with-auth', action='store_true', help='Enable enterprise authentication')
+    add_parser.add_argument('--auth-ownership', action='store_true', help='Enable owner-based access control')
+    add_parser.add_argument('--auth-audit', action='store_true', default=True, help='Enable audit logging')
+    add_parser.add_argument('--auth-soft-delete', action='store_true', help='Enable soft delete')
+    add_parser.add_argument('--auth-versioning', action='store_true', help='Enable versioning')
+    add_parser.add_argument('--auth-roles', help='Required roles (comma-separated)')
+    add_parser.add_argument('--auth-rate-limit', action='store_true', default=True, help='Enable rate limiting')
     
     # List command
     list_parser = subparsers.add_parser('list', help='List all existing plugins')
@@ -663,6 +933,25 @@ Examples:
     # Health check command
     subparsers.add_parser('health-check', help='Run comprehensive system health check')
     
+    # Authentication commands
+    add_auth_parser = subparsers.add_parser('add-auth', help='Add authentication to existing plugin')
+    add_auth_parser.add_argument('model', help='Model name to add authentication to')
+    add_auth_parser.add_argument('--ownership', action='store_true', help='Enable owner-based access control')
+    add_auth_parser.add_argument('--audit', action='store_true', default=True, help='Enable audit logging')
+    add_auth_parser.add_argument('--soft-delete', action='store_true', help='Enable soft delete')
+    add_auth_parser.add_argument('--roles', help='Required roles (comma-separated)')
+    
+    # Auth check command
+    subparsers.add_parser('auth-check', help='Check authentication system compatibility')
+    
+    # Generate auth preset command
+    auth_preset_parser = subparsers.add_parser('auth-preset', help='Generate with authentication presets')
+    auth_preset_parser.add_argument('preset', choices=['basic', 'secure', 'enterprise'], help='Authentication preset level')
+    auth_preset_parser.add_argument('model', help='Model name (PascalCase)')
+    auth_preset_parser.add_argument('fields', nargs='*', help='Field definitions (name:type[:constraints])')
+    auth_preset_parser.add_argument('--with-tasks', action='store_true', help='Include background tasks')
+    auth_preset_parser.add_argument('--with-bulk', action='store_true', help='Include bulk operations')
+    
     args = parser.parse_args()
     
     if not args.command:
@@ -679,7 +968,22 @@ Examples:
             print("Example: python scaffold_generator_v4/main.py add User name:str email:email age:int")
             return
         
-        success = generator.add_plugin(args.model, args.fields, args.with_tasks, args.with_bulk)
+        # Build auth configuration from arguments
+        auth_config = None
+        if args.with_auth:
+            auth_config = {
+                "enable_auth": True,
+                "enable_ownership": args.auth_ownership,
+                "enable_audit": args.auth_audit,
+                "enable_soft_delete": args.auth_soft_delete,
+                "enable_versioning": args.auth_versioning,
+                "enable_rate_limiting": args.auth_rate_limit,
+                "require_permissions": True,
+                "require_roles": args.auth_roles.split(',') if args.auth_roles else [],
+                "owner_based_access": args.auth_ownership
+            }
+        
+        success = generator.add_plugin(args.model, args.fields, args.with_tasks, args.with_bulk, args.with_auth, auth_config)
         sys.exit(0 if success else 1)
     
     elif args.command == 'infra-check':
@@ -712,6 +1016,27 @@ Examples:
     elif args.command == 'health-check':
         healthy = generator.health_check()
         sys.exit(0 if healthy else 1)
+    
+    elif args.command == 'add-auth':
+        success = generator.add_authentication_to_plugin(args.model, {
+            "enable_ownership": args.ownership,
+            "enable_audit": args.audit,
+            "enable_soft_delete": args.soft_delete,
+            "require_roles": args.roles.split(',') if args.roles else []
+        })
+        sys.exit(0 if success else 1)
+    
+    elif args.command == 'auth-check':
+        success = generator.auth_check()
+        sys.exit(0 if success else 1)
+    
+    elif args.command == 'auth-preset':
+        if not args.fields:
+            print("❌ Error: No fields specified for auth preset")
+            return
+        
+        success = generator.generate_with_auth_preset(args.preset, args.model, args.fields, args.with_tasks, args.with_bulk)
+        sys.exit(0 if success else 1)
 
 
 if __name__ == "__main__":
