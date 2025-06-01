@@ -174,6 +174,42 @@ class RefreshTokenRequest(BaseModel):
     refresh_token: str
 
 
+# Email verification schemas
+class EmailVerificationRequest(BaseModel):
+    email: str
+
+
+# Password reset schemas
+class PasswordResetRequest(BaseModel):
+    email: str
+
+
+class PasswordResetConfirm(BaseModel):
+    user_id: str
+    token: str
+    new_password: str
+
+
+# User invitation schemas
+class UserInvitationRequest(BaseModel):
+    email: str
+    organization_name: Optional[str] = None
+    role: Optional[str] = "user"
+
+
+# Profile management schemas
+class UserProfileUpdate(BaseModel):
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    username: Optional[str] = None
+    # Note: email changes require verification
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+
 class MFASetupResponse(BaseModel):
     secret: str
     qr_code: str  # Base64 encoded QR code image

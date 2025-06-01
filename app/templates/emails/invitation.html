@@ -1,0 +1,40 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>You're Invited!</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: #27ae60; color: white; padding: 20px; border-radius: 8px 8px 0 0; text-align: center; }
+        .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
+        .button { display: inline-block; background: #27ae60; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 20px 0; }
+        .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 14px; color: #666; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>You're Invited!</h1>
+    </div>
+    <div class="content">
+        <h2>Great news!</h2>
+        <p>{{ inviter_name }} has invited you to join <strong>{{ organization_name }}</strong> on {{ app_name }}.</p>
+        
+        <p>Click the button below to accept the invitation and create your account:</p>
+        
+        <a href="{{ invitation_link }}" class="button">Accept Invitation</a>
+        
+        <p>If the button doesn't work, you can also copy and paste this link into your browser:</p>
+        <p><a href="{{ invitation_link }}">{{ invitation_link }}</a></p>
+        
+        <p>This invitation will expire in 7 days.</p>
+        
+        <div class="footer">
+            <p>If you don't know {{ inviter_name }} or weren't expecting this invitation, you can safely ignore this email.</p>
+            <p>Need help? Contact us at <a href="mailto:{{ support_email }}">{{ support_email }}</a></p>
+        </div>
+    </div>
+</body>
+</html>
+        

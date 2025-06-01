@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Response, BackgroundTasks
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import get_db
@@ -11,6 +11,7 @@ from app.db.schemas.user import (
 from app.services.user_service import enhanced_user_service
 from app.core.security import security_service
 from app.core.jwt import jwt_service
+from app.core.email import email_service
 from datetime import datetime, timedelta
 from typing import List
 import json
@@ -76,11 +77,20 @@ async def get_current_user(
 async def register_user(
     user_create: UserCreate,
     request: Request,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db)
 ):
-    """Register a new user with enterprise security validation"""
+    """Register a new user with enterprise security validation and email verification"""
     try:
         user = await enhanced_user_service.create_user(db, user_create)
+        
+        # Send verification email in background
+        background_tasks.add_task(
+            email_service.send_verification_email,
+            user.email,
+            f"{user.first_name} {user.last_name}",
+            user.id
+        )
         
         # Log registration event
         security_service.log_security_event(

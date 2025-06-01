@@ -1,0 +1,252 @@
+# app/api/v1/endpoints/listing.py
+
+from typing import Any, Dict, List, Optional, Type
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.db.session import get_db
+from app.db.base import Base
+from app.core.listing_service import (
+    BaseListingService, ListingRequest, ListingResponse,
+    PaginationParams, FilterCriteria, SortCriteria, SearchParams,
+    FilterOperator, SortOrder, ModelIntrospector
+)
+
+# Import your models here for dynamic endpoint creation
+from app.db.models.user import User
+# Product model not available yet - uncomment when created
+# from app.db.models.product import Product
+
+
+router = APIRouter()
+
+
+class ModelListingEndpoint:
+    """Dynamic listing endpoint creator for any SQLAlchemy model"""
+    
+    def __init__(self, model: Type[Base], route_prefix: str):
+        self.model = model
+        self.route_prefix = route_prefix
+        self.service = BaseListingService(model)
+        self.introspector = ModelIntrospector()
+    
+    def create_listing_endpoint(self):
+        """Create the listing endpoint for this model"""
+        
+        @router.post(f"/{self.route_prefix}/listing", response_model=ListingResponse)
+        async def list_items(
+            request: ListingRequest,
+            session: AsyncSession = Depends(get_db)
+        ) -> ListingResponse:
+            """Universal listing endpoint with advanced filtering, sorting, and search"""
+            try:
+                return await self.service.list_items(session, request)
+            except Exception as e:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Failed to list {self.model.__name__} items: {str(e)}"
+                )
+        
+        @router.get(f"/{self.route_prefix}/listing", response_model=ListingResponse)
+        async def list_items_get(
+            # Pagination
+            page: int = Query(1, ge=1, description="Page number"),
+            page_size: int = Query(20, ge=1, le=100, description="Items per page"),
+            
+            # Search
+            search: Optional[str] = Query(None, description="Search query"),
+            search_fields: Optional[List[str]] = Query(None, description="Fields to search in"),
+            
+            # Sorting
+            sort_by: Optional[str] = Query(None, description="Field to sort by"),
+            sort_order: Optional[SortOrder] = Query(SortOrder.ASC, description="Sort order"),
+            
+            # Include relationships
+            include: Optional[List[str]] = Query(None, description="Relationships to include"),
+            
+            session: AsyncSession = Depends(get_db)
+        ) -> ListingResponse:
+            """GET version of listing endpoint with query parameters"""
+            
+            # Build request from query parameters
+            request = ListingRequest(
+                pagination=PaginationParams(page=page, page_size=page_size),
+                search=SearchParams(query=search, fields=search_fields) if search else None,
+                sort=[SortCriteria(field=sort_by, order=sort_order)] if sort_by else [],
+                include_relations=include or []
+            )
+            
+            try:
+                return await self.service.list_items(session, request)
+            except Exception as e:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Failed to list {self.model.__name__} items: {str(e)}"
+                )
+        
+        @router.get(f"/{self.route_prefix}/fields")
+        async def get_model_fields() -> Dict[str, Any]:
+            """Get filterable and searchable fields for the model"""
+            return {
+                "filterable_fields": self.service.get_filterable_fields(),
+                "searchable_fields": self.service.get_searchable_fields(),
+                "model_name": self.model.__name__
+            }
+        
+        return list_items, list_items_get, get_model_fields
+
+
+# Create listing endpoints for all models
+def setup_model_listings():
+    """Set up listing endpoints for all registered models"""
+    
+    # User listing endpoints
+    user_endpoint = ModelListingEndpoint(User, "users")
+    user_endpoint.create_listing_endpoint()
+    
+    # Product listing endpoints (uncomment when Product model is available)
+    # product_endpoint = ModelListingEndpoint(Product, "products")
+    # product_endpoint.create_listing_endpoint()
+    
+    # Add more models as needed
+    # Example for future models:
+    # order_endpoint = ModelListingEndpoint(Order, "orders")
+    # order_endpoint.create_listing_endpoint()
+
+
+# Initialize all model listings
+setup_model_listings()
+
+
+# Additional utility endpoints
+@router.get("/operators")
+async def get_filter_operators() -> List[Dict[str, str]]:
+    """Get available filter operators"""
+    return [
+        {"value": op.value, "description": op.value.replace("_", " ").title()}
+        for op in FilterOperator
+    ]
+
+
+@router.get("/sort-orders")
+async def get_sort_orders() -> List[Dict[str, str]]:
+    """Get available sort orders"""
+    return [
+        {"value": order.value, "description": order.value.upper()}
+        for order in SortOrder
+    ]
+
+
+# Example of advanced filtering endpoint
+@router.post("/users/advanced-listing", response_model=ListingResponse)
+async def advanced_user_listing(
+    # Basic filters - using actual User model field names
+    username__contains: Optional[str] = Query(None, description="Username contains"),
+    email__contains: Optional[str] = Query(None, description="Email contains"),
+    first_name__contains: Optional[str] = Query(None, description="First name contains"),
+    last_name__contains: Optional[str] = Query(None, description="Last name contains"),
+    is_active__eq: Optional[bool] = Query(None, description="Is active equals"),
+    is_verified__eq: Optional[bool] = Query(None, description="Is verified equals"),
+    
+    # Date range filters
+    created_at__gte: Optional[str] = Query(None, description="Created after (ISO date)"),
+    created_at__lte: Optional[str] = Query(None, description="Created before (ISO date)"),
+    
+    # Pagination
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    
+    # Search
+    search: Optional[str] = Query(None),
+    
+    # Sort
+    sort_by: Optional[str] = Query("created_at"),
+    sort_order: Optional[SortOrder] = Query(SortOrder.DESC),
+    
+    session: AsyncSession = Depends(get_db)
+) -> ListingResponse:
+    """Advanced user listing with pre-defined common filters"""
+    
+    # Build filters dynamically
+    filters = []
+    
+    if username__contains:
+        filters.append(FilterCriteria(
+            field="username", 
+            operator=FilterOperator.CONTAINS, 
+            value=username__contains
+        ))
+    
+    if email__contains:
+        filters.append(FilterCriteria(
+            field="email", 
+            operator=FilterOperator.CONTAINS, 
+            value=email__contains
+        ))
+    
+    if first_name__contains:
+        filters.append(FilterCriteria(
+            field="first_name", 
+            operator=FilterOperator.CONTAINS, 
+            value=first_name__contains
+        ))
+    
+    if last_name__contains:
+        filters.append(FilterCriteria(
+            field="last_name", 
+            operator=FilterOperator.CONTAINS, 
+            value=last_name__contains
+        ))
+    
+    if is_active__eq is not None:
+        filters.append(FilterCriteria(
+            field="is_active", 
+            operator=FilterOperator.EQUALS, 
+            value=is_active__eq
+        ))
+    
+    if is_verified__eq is not None:
+        filters.append(FilterCriteria(
+            field="is_verified", 
+            operator=FilterOperator.EQUALS, 
+            value=is_verified__eq
+        ))
+    
+    if created_at__gte:
+        filters.append(FilterCriteria(
+            field="created_at", 
+            operator=FilterOperator.GREATER_THAN_OR_EQUAL, 
+            value=created_at__gte
+        ))
+    
+    if created_at__lte:
+        filters.append(FilterCriteria(
+            field="created_at", 
+            operator=FilterOperator.LESS_THAN_OR_EQUAL, 
+            value=created_at__lte
+        ))
+    
+    # Build request
+    request = ListingRequest(
+        pagination=PaginationParams(page=page, page_size=page_size),
+        filters=filters,
+        sort=[SortCriteria(field=sort_by, order=sort_order)] if sort_by else [],
+        search=SearchParams(query=search) if search else None
+    )
+    
+    # Use service
+    service = BaseListingService(User)
+    return await service.list_items(session, request)
+
+
+# Export functionality for other modules
+@router.get("/models")
+async def list_available_models() -> List[Dict[str, str]]:
+    """List all models available for listing"""
+    return [
+        {"name": "User", "endpoint": "/users/listing"},
+        # {"name": "Product", "endpoint": "/products/listing"},  # Uncomment when Product model is available
+        # Add more models as they're implemented
+    ] 

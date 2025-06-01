@@ -21,6 +21,9 @@ from starlette.responses import Response as StarletteResponse
 from loguru import logger
 import uuid
 
+# Import tenant middleware for multi-tenancy support
+from app.middleware.tenant_middleware import TenantMiddleware, TenantIsolationMiddleware
+
 
 class ResponseCompressionMiddleware(BaseHTTPMiddleware):
     """
@@ -244,7 +247,11 @@ def setup_middleware(app):
     """
     Set up all middleware for the FastAPI application.
     """
-    # CORS middleware (should be first)
+    # Multi-tenancy middleware (should be early in the chain)
+    app.add_middleware(TenantIsolationMiddleware)
+    app.add_middleware(TenantMiddleware)
+    
+    # CORS middleware (should be first after tenant middleware)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],  # Configure appropriately for production

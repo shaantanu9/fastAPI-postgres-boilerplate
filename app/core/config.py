@@ -11,6 +11,30 @@ class Settings(BaseSettings):
     # JWT configuration
     jwt_secret_token: str  # Loaded from .env
     
+    # Application metadata
+    APP_NAME: str = "FastAPI PostgreSQL Application"
+    APP_VERSION: str = "1.0.0"
+    DESCRIPTION: str = "Enterprise FastAPI application with PostgreSQL"
+    ENVIRONMENT: str = "development"
+    
+    # Redis configuration
+    REDIS_URL: str = "redis://localhost:6379/0"
+    
+    # Health check settings
+    HEALTH_CHECK_ENABLED: bool = True
+    
+    # File management settings
+    FILE_STORAGE_TYPE: str = "local"  # local, s3, azure, gcp
+    FILE_UPLOAD_MAX_SIZE: int = 100 * 1024 * 1024  # 100MB
+    FILE_STORAGE_PATH: str = "./uploads"
+    
+    # S3 settings (for file storage)
+    AWS_ACCESS_KEY_ID: Optional[str] = None
+    AWS_SECRET_ACCESS_KEY: Optional[str] = None
+    AWS_S3_BUCKET: Optional[str] = None
+    AWS_S3_REGION: str = "us-east-1"
+    AWS_S3_ENDPOINT_URL: Optional[str] = None
+    
     # Procrastinate configuration
     procrastinate_schema: str = "procrastinate"
     procrastinate_app_name: str = "FastAPI App"
@@ -27,6 +51,21 @@ class Settings(BaseSettings):
     # Task queue configuration
     task_queue_max_retries: int = 3
     task_queue_retry_delay: int = 60  # seconds
+    
+    # Email settings
+    smtp_server: str = "smtp.gmail.com"
+    smtp_port: int = 587
+    smtp_username: str = ""
+    smtp_password: str = ""
+    smtp_use_tls: bool = True
+    smtp_from_email: str = ""
+    smtp_from_name: str = "Your App"
+    email_secret_key: str = "your-email-secret-key-change-this"
+    
+    # Frontend URLs for SaaS
+    frontend_url: str = "http://localhost:3000"
+    support_email: str = "support@yourapp.com"
+    app_name: str = "Your SaaS App"
     
     class Config:
         env_file = ".env"

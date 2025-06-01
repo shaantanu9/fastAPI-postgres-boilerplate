@@ -33,6 +33,9 @@ from app.core.exception_handlers import (
     generic_exception_handler,
 )
 
+# Import tenant middleware for multi-tenancy support
+from app.middleware.tenant_middleware import TenantMiddleware, TenantIsolationMiddleware
+
 # Import production configurations if available
 try:
     from production_configs.scripts.graceful_shutdown import (
