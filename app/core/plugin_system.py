@@ -335,6 +335,82 @@ class PluginRegistry:
                 visit(plugin_name)
 
 
+class V4PluginAdapter(PluginInterface):
+    """
+    Adapter for v4 modular plugins to work with the existing plugin system.
+    Bridges the gap between v4's register_plugin() pattern and v3's PluginBase pattern.
+    """
+    
+    def __init__(self, module, plugin_name: str):
+        self.module = module
+        self.plugin_name = plugin_name
+        self._metadata = None
+        self._routes_instance = None
+        
+    @property
+    def metadata(self) -> PluginMetadata:
+        """Get metadata from the v4 plugin module"""
+        if self._metadata is None:
+            metadata_dict = self.module.PLUGIN_METADATA
+            self._metadata = PluginMetadata(
+                name=metadata_dict["name"],
+                version=metadata_dict["version"],
+                description=metadata_dict["description"],
+                author=metadata_dict.get("author", ""),
+                dependencies=metadata_dict.get("dependencies", []),
+                tags=metadata_dict.get("features", []),  # Map features to tags
+                priority=50  # Default priority for v4 plugins
+            )
+        return self._metadata
+    
+    async def initialize(self, app: FastAPI, context: "PluginContext") -> None:
+        """Initialize the v4 plugin by calling its register_plugin function"""
+        try:
+            # Call the plugin's register_plugin function to register routes and services
+            # This is the main way v4 plugins register themselves
+            success = self.module.register_plugin(app, context)
+            if not success:
+                raise Exception("Plugin registration returned False")
+            
+            # Also initialize the routes instance for our get_routes() method
+            if hasattr(self.module, 'PLUGIN_COMPONENTS'):
+                components = self.module.PLUGIN_COMPONENTS
+                if 'routes' in components:
+                    routes_class = components['routes']
+                    self._routes_instance = routes_class()
+            
+            logger.info(f"v4 plugin {self.plugin_name} initialized successfully")
+            
+        except Exception as e:
+            logger.error(f"Failed to initialize v4 plugin {self.plugin_name}: {e}")
+            raise
+    
+    async def startup(self) -> None:
+        """Startup hook for v4 plugins"""
+        # v4 plugins don't have explicit startup/shutdown hooks
+        # but we can call initialize_plugin if it exists
+        if hasattr(self.module, 'initialize_plugin'):
+            try:
+                self.module.initialize_plugin()
+            except Exception as e:
+                logger.warning(f"v4 plugin {self.plugin_name} startup hook failed: {e}")
+    
+    async def shutdown(self) -> None:
+        """Shutdown hook for v4 plugins"""
+        # v4 plugins don't have explicit shutdown hooks
+        pass
+    
+    def get_routes(self) -> List[Any]:
+        """Get routes from the v4 plugin - return empty since v4 plugins register routes directly"""
+        # v4 plugins register their routes directly through register_plugin() function
+        # so we return empty list to avoid duplicate registration
+        return []
+    
+    def get_middleware(self) -> List[Any]:
+        """Get middleware from the v4 plugin (v4 plugins typically don't use middleware)"""
+        return []
+
+
 class PluginLoader:
     """
     Handles dynamic loading of plugins from various sources.
@@ -369,16 +445,24 @@ class PluginLoader:
         return discovered_plugins
     
     def _discover_from_directory(self, directory: Path) -> List[PluginInterface]:
-        """Discover plugins from a directory"""
+        """Discover plugins from a directory (supports both v3 and v4 patterns)"""
         plugins = []
         
-        for file_path in directory.glob("**/*.py"):
+        # First, look for v3-style single-file plugins (*.py files)
+        for file_path in directory.glob("*.py"):
             if file_path.name.startswith("_"):
                 continue
             
             plugin = self._load_from_file(file_path)
             if plugin:
                 plugins.append(plugin)
+        
+        # Then, look for v4-style modular plugins (directories ending with _plugin)
+        for plugin_dir in directory.iterdir():
+            if plugin_dir.is_dir() and plugin_dir.name.endswith('_plugin'):
+                plugin = self._load_v4_plugin(plugin_dir)
+                if plugin:
+                    plugins.append(plugin)
         
         return plugins
     
@@ -428,6 +512,47 @@ class PluginLoader:
             logger.error(f"Failed to load plugin from {file_path}: {e}")
         
         return None
+    
+    def _load_v4_plugin(self, plugin_dir: Path) -> Optional[PluginInterface]:
+        """Load a v4 modular plugin from a directory"""
+        try:
+            plugin_name = plugin_dir.name
+            init_file = plugin_dir / "__init__.py"
+            
+            if not init_file.exists():
+                logger.debug(f"No __init__.py found in {plugin_dir}")
+                return None
+            
+            # Import the plugin module
+            module_name = f"app.plugins.{plugin_name}"
+            try:
+                module = importlib.import_module(module_name)
+            except ImportError as e:
+                logger.error(f"Failed to import v4 plugin {plugin_name}: {e}")
+                return None
+            
+            # Check if it has the required components
+            if not (hasattr(module, 'register_plugin') and 
+                    hasattr(module, 'PLUGIN_METADATA')):
+                logger.debug(f"v4 plugin {plugin_name} missing required components")
+                return None
+            
+            # Create a v4 plugin adapter
+            plugin_adapter = V4PluginAdapter(module, plugin_name)
+            
+            # Check version compatibility
+            if not self.version_manager.is_compatible(plugin_adapter.metadata):
+                logger.warning(
+                    f"v4 plugin {plugin_name} is not compatible with current app version"
+                )
+                return None
+            
+            logger.info(f"Loaded v4 plugin: {plugin_name}")
+            return plugin_adapter
+            
+        except Exception as e:
+            logger.error(f"Failed to load v4 plugin from {plugin_dir}: {e}")
+            return None
     
     def _is_plugin_class(self, obj: Any) -> bool:
         """Check if an object is a valid plugin class"""
