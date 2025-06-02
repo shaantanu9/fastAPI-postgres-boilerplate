@@ -12,6 +12,7 @@ from app.api.v1.endpoints import files
 from app.api.v1.endpoints import listing
 from app.api.v1.endpoints import jobs
 from app.api.v1.endpoints import organizations
+from app.api.v1.endpoints import email_integration
 
 api_router = APIRouter()
 
@@ -20,6 +21,9 @@ api_router.include_router(auth.router, prefix="/auth", tags=["authentication"])
 api_router.include_router(user.router, prefix="/users", tags=["users"])
 api_router.include_router(user_management.router, prefix="/user-management", tags=["user-management"])
 api_router.include_router(organizations.router, prefix="/organizations", tags=["organizations"])
+
+# Email service
+api_router.include_router(email_integration.router, prefix="/email", tags=["email-service"])
 
 # Enterprise features
 api_router.include_router(health.router, prefix="/health", tags=["health-monitoring"])

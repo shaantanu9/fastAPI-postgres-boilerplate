@@ -68,6 +68,16 @@ class Settings(BaseSettings):
     smtp_from_name: str = "Your App"
     email_secret_key: str = "your-email-secret-key-change-this"
     
+    # AWS SES Settings
+    AWS_REGION: str = "us-east-1"
+    SES_CONFIGURATION_SET: Optional[str] = None
+    EMAIL_FROM_DOMAIN: Optional[str] = None
+    EMAIL_FROM_EMAIL: str = "noreply@yourapp.com"
+    EMAIL_FROM_NAME: str = "Your App"
+    
+    # Email provider selection
+    EMAIL_PROVIDER: str = "ses"  # 'ses' or 'smtp'
+    
     # Frontend URLs for SaaS
     frontend_url: str = "http://localhost:3000"
     support_email: str = "support@yourapp.com"
@@ -95,3 +105,73 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings():
     return Settings()
+
+# Export settings instance for direct import
+settings = get_settings()
+
+def validate_aws_configuration() -> dict:
+    """
+    Validate AWS configuration and return status information
+    
+    Returns:
+        Dict with validation results and helpful debugging info
+    """
+    validation_result = {
+        "aws_credentials_configured": False,
+        "aws_region_configured": False,
+        "email_settings_configured": False,
+        "issues": [],
+        "recommendations": []
+    }
+    
+    # Check AWS credentials
+    if settings.AWS_ACCESS_KEY_ID and settings.AWS_SECRET_ACCESS_KEY:
+        validation_result["aws_credentials_configured"] = True
+    else:
+        validation_result["issues"].append("AWS credentials not configured in environment variables")
+        validation_result["recommendations"].append("Set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables")
+    
+    # Check AWS region
+    if settings.AWS_REGION:
+        validation_result["aws_region_configured"] = True
+    else:
+        validation_result["issues"].append("AWS region not configured")
+        validation_result["recommendations"].append("Set AWS_REGION environment variable (default: us-east-1)")
+    
+    # Check email settings
+    if settings.EMAIL_FROM_EMAIL and settings.EMAIL_FROM_NAME:
+        validation_result["email_settings_configured"] = True
+    else:
+        validation_result["issues"].append("Email from settings not configured")
+        validation_result["recommendations"].append("Set EMAIL_FROM_EMAIL and EMAIL_FROM_NAME in settings")
+    
+    # Overall status
+    validation_result["is_valid"] = (
+        validation_result["aws_credentials_configured"] and 
+        validation_result["aws_region_configured"] and 
+        validation_result["email_settings_configured"]
+    )
+    
+    return validation_result
+
+def get_debug_info() -> dict:
+    """Get debugging information about current configuration"""
+    import os
+    
+    return {
+        "aws_access_key_configured": bool(os.getenv("AWS_ACCESS_KEY_ID")),
+        "aws_secret_key_configured": bool(os.getenv("AWS_SECRET_ACCESS_KEY")),
+        "aws_region": settings.AWS_REGION,
+        "email_from_email": settings.EMAIL_FROM_EMAIL,
+        "email_from_name": settings.EMAIL_FROM_NAME,
+        "email_provider": settings.EMAIL_PROVIDER,
+        "ses_configuration_set": settings.SES_CONFIGURATION_SET,
+        "email_from_domain": settings.EMAIL_FROM_DOMAIN,
+        "environment_variables_set": {
+            "AWS_ACCESS_KEY_ID": bool(os.getenv("AWS_ACCESS_KEY_ID")),
+            "AWS_SECRET_ACCESS_KEY": bool(os.getenv("AWS_SECRET_ACCESS_KEY")),
+            "AWS_REGION": bool(os.getenv("AWS_REGION")),
+            "EMAIL_FROM_EMAIL": bool(os.getenv("EMAIL_FROM_EMAIL")),
+            "EMAIL_FROM_NAME": bool(os.getenv("EMAIL_FROM_NAME")),
+        }
+    }
