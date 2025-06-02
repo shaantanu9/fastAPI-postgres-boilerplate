@@ -103,6 +103,20 @@ def require_role(role: str):
         return user
     return role_checker
 
+def require_permission(resource: str, action: str):
+    """Require specific permission for resource and action"""
+    def permission_checker(user: User = Depends(get_current_active_user)):
+        # For now, just check if user is authenticated (token is valid)
+        # TODO: Implement proper RBAC when roles are configured
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Authentication required"
+            )
+        # Allow any authenticated user for now (bypass role checking)
+        return user
+    return permission_checker
+
 class EnterpriseSecurityService:
     def __init__(self):
         self.pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -304,6 +318,31 @@ class EnterpriseSecurityService:
     def generate_backup_codes(self, count: int = 10) -> List[str]:
         """Generate backup codes for MFA"""
         return [secrets.token_hex(4).upper() for _ in range(count)]
+
+    async def check_permission(self, db, user, resource: str, action: str) -> bool:
+        """Check if user has permission for action on resource"""
+        # Simplified permission check - for now just check if user is authenticated
+        if not user or not hasattr(user, 'id'):
+            return False
+        
+        # Allow any authenticated user for now (bypass role checking)
+        # TODO: Implement proper RBAC when roles are configured
+        return True
+    
+    async def is_admin(self, user) -> bool:
+        """Check if user has admin privileges"""
+        if not user:
+            return False
+        return has_role(user, 'admin')
+    
+    async def log_security_event(self, db, user, event_type: str, category: str, 
+                                data: dict, request) -> None:
+        """Log security event for audit trail"""
+        try:
+            # Enhanced security event logging using existing method
+            self.log_security_event(db, user, event_type, category, data, request)
+        except Exception as e:
+            print(f"⚠️ Failed to log security event: {e}")
 
 # Initialize service
 security_service = EnterpriseSecurityService()

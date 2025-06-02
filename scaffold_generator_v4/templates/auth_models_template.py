@@ -3,6 +3,13 @@ Enhanced SQLAlchemy models template with authentication support
 """
 from typing import List, Dict, Any
 import re
+from sqlalchemy import Column, Integer, String, Boolean, Float, Text, DateTime, Date, JSON, ForeignKey
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import relationship, Session
+from sqlalchemy.sql import func
+from app.db.base import Base
+from datetime import datetime
+import uuid
 
 
 class AuthModelsTemplate:

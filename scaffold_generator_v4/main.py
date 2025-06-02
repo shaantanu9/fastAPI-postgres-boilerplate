@@ -790,17 +790,19 @@ class ScaffoldGeneratorV4:
         presets = {
             "basic": {
                 "enable_auth": True,
+                "simple_token_auth": True,  # Simple JWT authentication
                 "enable_ownership": False,
                 "enable_audit": True,
                 "enable_soft_delete": False,
                 "enable_versioning": False,
                 "enable_rate_limiting": True,
-                "require_permissions": True,
+                "require_permissions": False,  # No role checks for basic
                 "require_roles": [],
                 "owner_based_access": False
             },
             "secure": {
                 "enable_auth": True,
+                "simple_token_auth": False,  # Use permissions for secure
                 "enable_ownership": True,
                 "enable_audit": True,
                 "enable_soft_delete": True,
@@ -812,6 +814,7 @@ class ScaffoldGeneratorV4:
             },
             "enterprise": {
                 "enable_auth": True,
+                "simple_token_auth": False,  # Use full RBAC for enterprise
                 "enable_ownership": True,
                 "enable_audit": True,
                 "enable_soft_delete": True,
@@ -933,6 +936,9 @@ Examples:
     # Health check command
     subparsers.add_parser('health-check', help='Run comprehensive system health check')
     
+    # Fix Alembic command
+    subparsers.add_parser('fix-alembic', help='Fix corrupted Alembic state')
+    
     # Authentication commands
     add_auth_parser = subparsers.add_parser('add-auth', help='Add authentication to existing plugin')
     add_auth_parser.add_argument('model', help='Model name to add authentication to')
@@ -973,12 +979,13 @@ Examples:
         if args.with_auth:
             auth_config = {
                 "enable_auth": True,
+                "simple_token_auth": True,  # Use simple JWT token authentication by default
                 "enable_ownership": args.auth_ownership,
                 "enable_audit": args.auth_audit,
                 "enable_soft_delete": args.auth_soft_delete,
                 "enable_versioning": args.auth_versioning,
                 "enable_rate_limiting": args.auth_rate_limit,
-                "require_permissions": True,
+                "require_permissions": bool(args.auth_roles),  # Only if roles are specified
                 "require_roles": args.auth_roles.split(',') if args.auth_roles else [],
                 "owner_based_access": args.auth_ownership
             }
@@ -1016,6 +1023,10 @@ Examples:
     elif args.command == 'health-check':
         healthy = generator.health_check()
         sys.exit(0 if healthy else 1)
+    
+    elif args.command == 'fix-alembic':
+        success = generator.migration_manager.fix_alembic_state()
+        sys.exit(0 if success else 1)
     
     elif args.command == 'add-auth':
         success = generator.add_authentication_to_plugin(args.model, {

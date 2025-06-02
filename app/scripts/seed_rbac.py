@@ -5,7 +5,7 @@ Run this after database initialization to set up the basic RBAC structure.
 
 import asyncio
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.db.session import get_async_session
+from app.db.session import AsyncSessionLocal
 from app.db.models.user import Role, Permission, RolePermission
 from sqlalchemy import select
 from loguru import logger
@@ -195,7 +195,7 @@ async def seed_rbac():
     """Main function to seed RBAC data"""
     logger.info("Starting RBAC seeding process...")
     
-    async with get_async_session() as db:
+    async with AsyncSessionLocal() as db:
         try:
             # Create permissions first
             logger.info("Creating default permissions...")
@@ -228,7 +228,7 @@ async def create_first_admin_user(
     
     logger.info(f"Creating first admin user: {username}")
     
-    async with get_async_session() as db:
+    async with AsyncSessionLocal() as db:
         try:
             # Check if user already exists
             existing = await enhanced_user_service.get_by_username_or_email(db, username, email)
@@ -269,10 +269,10 @@ if __name__ == "__main__":
     asyncio.run(seed_rbac())
     
     # Create first admin user (uncomment and modify as needed)
-    # asyncio.run(create_first_admin_user(
-    #     username="admin",
-    #     email="admin@yourapp.com",
-    #     password="AdminPassword123!",
-    #     first_name="System",
-    #     last_name="Administrator"
-    # )) 
+    asyncio.run(create_first_admin_user(
+        username="admin",
+        email="admin@yourapp.com",
+        password="AdminPassword123!",
+        first_name="System",
+        last_name="Administrator"
+    )) 

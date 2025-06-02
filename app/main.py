@@ -49,6 +49,11 @@ except ImportError:
     PRODUCTION_FEATURES_AVAILABLE = False
     logging.warning("Production features not available - running in development mode")
 
+# Observability imports
+from app.middleware.logging_middleware import LoggingMiddleware, SecurityLoggingMiddleware
+from app.core.metrics import metrics
+from app.api.v1.endpoints.health import router as health_router
+
 # --- Logging and settings initialization ---
 setup_logging()  # Configure loguru and std logging
 settings = get_settings()  # Load environment variables and app config
@@ -144,197 +149,159 @@ async def lifespan(app: FastAPI):
     logging.info("✅ Shutdown complete. All concurrent processing stopped.")
 
 
-# --- FastAPI app instance ---
-app = FastAPI(
-    title="FastAPI Enterprise Plugin System",
-    version="1.0.0",
-    description="""
-    🚀 **FastAPI Enterprise Plugin System with Dynamic Route Discovery**
+def create_app() -> FastAPI:
+    """Create and configure the FastAPI application"""
+    settings = get_settings()
     
-    A modular and scalable FastAPI application featuring:
-    - 🔌 **Dynamic Plugin System** - Hot-pluggable modules with automatic discovery
-    - 🏗️ **Enterprise Architecture** - Scalable, maintainable, and production-ready
-    - 📊 **Monitoring & Analytics** - Built-in performance monitoring and health checks
-    - 🔄 **Background Tasks** - Procrastinate-powered task queue with PostgreSQL persistence
-    - 🛡️ **Security** - JWT authentication, role-based permissions, security middleware
-    - 📱 **Auto-Generated APIs** - Complete CRUD operations with validation
-    - 🚄 **High Performance** - Async SQLAlchemy, connection pooling, response compression
-    - 📖 **Interactive Documentation** - Swagger UI with comprehensive API docs
-    
-    **Plugin Features:**
-    - ✅ Automatic route registration and Swagger integration
-    - ✅ Database models with migrations
-    - ✅ Pydantic schemas with validation
-    - ✅ Service layer with repository pattern
-    - ✅ Event-driven architecture
-    - ✅ Background task integration
-    - ✅ Bulk operations support
-    - ✅ Health monitoring
-    
-    **Generated Endpoints:**
-    All plugins automatically generate REST endpoints that appear in this documentation.
-    Navigate through the sections below to explore the available APIs.
-    """,
-    contact={
-        "name": "FastAPI Enterprise Team",
-        "email": "enterprise@fastapi.dev",
-        "url": "https://fastapi-enterprise.dev"
-    },
-    license_info={
-        "name": "MIT License",
-        "url": "https://opensource.org/licenses/MIT"
-    },
-    terms_of_service="https://fastapi-enterprise.dev/terms/",
-    docs_url="/docs",
-    redoc_url="/redoc",
-    openapi_tags=[
-        {"name": "System", "description": "🔧 System health, status, and monitoring endpoints"},
-        {"name": "Authentication", "description": "🔐 User authentication and authorization"},
-        {"name": "Users", "description": "👥 User management operations"},
-        {"name": "Plugins", "description": "🔌 Plugin management and status"},
-        {"name": "Tasks", "description": "⚙️ Background task management"},
-        {"name": "Monitoring", "description": "📊 Application monitoring and metrics"},
-        {"name": "Cache", "description": "🗄️ Caching operations and management"},
-        {"name": "Products", "description": "🛍️ Product management (demo plugin)"},
-        {"name": "Bulk Operations", "description": "📦 High-performance bulk operations"},
-        {"name": "v1.0", "description": "📋 API version 1.0 endpoints"},
-    ],
-    lifespan=lifespan
-)
-
-# --- Advanced middleware and performance features ---
-try:
-    from app.core.middleware import setup_middleware
-    from app.core.versioning import version_manager, create_v1_router, create_v2_router
-    ADVANCED_FEATURES_AVAILABLE = True
-    
-    # Setup comprehensive middleware (compression, security, performance monitoring)
-    setup_middleware(app)
-    logging.info("✅ Advanced features configured: compression, security headers, performance monitoring, rate limiting")
-except ImportError:
-    ADVANCED_FEATURES_AVAILABLE = False
-    logging.warning("⚠️ Advanced middleware features not available")
-
-# --- Exception handlers ---
-app.add_exception_handler(AppException, app_exception_handler)
-app.add_exception_handler(HTTPException, http_exception_handler)
-app.add_exception_handler(SQLAlchemyError, sqlalchemy_exception_handler)
-app.add_exception_handler(Exception, generic_exception_handler)
-
-# --- API router mounting ---
-app.include_router(api_router, prefix="/api/v1")
-
-# --- Request logging middleware ---
-@app.middleware("http")
-async def log_requests(request: Request, call_next):
-    """Log all requests for debugging and monitoring."""
-    start_time = time.time()
-    
-    # Process request
-    response = await call_next(request)
-    
-    # Calculate processing time
-    process_time = time.time() - start_time
-    
-    # Log the request
-    logging.info(
-        f"{request.method} {request.url.path} - "
-        f"Status: {response.status_code} - "
-        f"Time: {process_time:.4f}s"
+    # Setup structured logging
+    setup_logging(
+        log_level=settings.LOG_LEVEL,
+        log_file="logs/app.log",
+        enable_console=True,
+        enable_file=True
     )
     
-    return response
+    app = FastAPI(
+        title=settings.PROJECT_NAME,
+        version=settings.VERSION,
+        openapi_url=f"{settings.API_V1_STR}/openapi.json"
+    )
 
-# --- Root endpoints ---
-@app.get("/", tags=["System"], summary="🏠 Welcome", description="Welcome message and system overview")
-def root():
-    """
-    🏠 **Welcome to FastAPI Enterprise Plugin System**
+    # Add observability middleware
+    app.add_middleware(SecurityLoggingMiddleware)
+    app.add_middleware(LoggingMiddleware, skip_paths=['/health', '/metrics', '/docs', '/openapi.json'])
     
-    This endpoint provides basic system information and navigation.
-    """
-    return {
-        "message": "🚀 Welcome to FastAPI Enterprise Plugin System!",
-        "version": "1.0.0",
-        "status": "running",
-        "features": [
-            "🔌 Dynamic Plugin System",
-            "📊 Real-time Monitoring", 
-            "🛡️ Enterprise Security",
-            "⚡ High Performance",
-            "📖 Auto-generated APIs"
-        ],
-        "endpoints": {
-            "docs": "/docs",
-            "redoc": "/redoc", 
-            "health": "/health",
-            "ready": "/ready",
-            "plugins": "/api/v1/plugins/status"
+    # Set application info for metrics
+    metrics.set_app_info(
+        version=settings.VERSION,
+        environment=settings.ENVIRONMENT,
+        build_time="2024-12-22T00:00:00Z"  # Would be actual build time
+    )
+    
+    # Include routers
+    app.include_router(api_router, prefix=settings.API_V1_STR)
+    app.include_router(health_router, prefix="/health", tags=["health"])
+    
+    # Add root endpoint
+    @app.get("/")
+    async def root():
+        return {
+            "message": "FastAPI Application with Observability",
+            "version": settings.VERSION,
+            "environment": settings.ENVIRONMENT,
+            "health_check": "/health",
+            "metrics": "/metrics"
         }
-    }
 
-if ADVANCED_FEATURES_AVAILABLE:
+    # --- Advanced middleware and performance features ---
+    try:
+        from app.core.middleware import setup_middleware
+        from app.core.versioning import version_manager, create_v1_router, create_v2_router
+        ADVANCED_FEATURES_AVAILABLE = True
+        
+        # Setup comprehensive middleware (compression, security, performance monitoring)
+        setup_middleware(app)
+        logging.info("✅ Advanced features configured: compression, security headers, performance monitoring, rate limiting")
+    except ImportError:
+        ADVANCED_FEATURES_AVAILABLE = False
+        logging.warning("⚠️ Advanced middleware features not available")
+
+    # --- Exception handlers ---
+    app.add_exception_handler(AppException, app_exception_handler)
+    app.add_exception_handler(HTTPException, http_exception_handler)
+    app.add_exception_handler(SQLAlchemyError, sqlalchemy_exception_handler)
+    app.add_exception_handler(Exception, generic_exception_handler)
+
+    # --- Request logging middleware ---
     import time
     
-    @app.get("/health", tags=["System"], summary="💓 Health Check", description="Liveness probe for orchestration")
-    def health():
-        """
-        💓 **System Health Check**
+    @app.middleware("http")
+    async def log_requests(request: Request, call_next):
+        """Log all requests for debugging and monitoring."""
+        start_time = time.time()
         
-        Basic liveness probe for container orchestration and load balancers.
-        Returns 200 if the application is running.
-        """
-        return {"status": "healthy", "timestamp": time.time()}
+        # Process request
+        response = await call_next(request)
+        
+        # Calculate processing time
+        process_time = time.time() - start_time
+        
+        # Log the request
+        logging.info(
+            f"{request.method} {request.url.path} - "
+            f"Status: {response.status_code} - "
+            f"Time: {process_time:.4f}s"
+        )
+        
+        return response
 
-    @app.get("/ready", tags=["System"], summary="✅ Readiness Check", description="Readiness probe with dependency checks")
-    async def ready():
-        """
-        ✅ **System Readiness Check**
+    if ADVANCED_FEATURES_AVAILABLE:
+        import time
         
-        Readiness probe that checks if the application is ready to serve traffic.
-        Validates database connectivity and essential services.
-        """
-        try:
-            # Test database connection
-            from sqlalchemy import text
-            from app.db.session import get_db
+        @app.get("/health", tags=["System"], summary="💓 Health Check", description="Liveness probe for orchestration")
+        def health():
+            """
+            💓 **System Health Check**
             
-            async for db in get_db():
-                await db.execute(text("SELECT 1"))
-                break
+            Basic liveness probe for container orchestration and load balancers.
+            Returns 200 if the application is running.
+            """
+            return {"status": "healthy", "timestamp": time.time()}
+
+        @app.get("/ready", tags=["System"], summary="✅ Readiness Check", description="Readiness probe with dependency checks")
+        async def ready():
+            """
+            ✅ **System Readiness Check**
             
-            # Check plugin system
-            plugin_ready = _plugin_manager is not None if _plugin_manager else False
-            
-            return {
-                "status": "ready",
-                "timestamp": time.time(),
-                "checks": {
-                    "database": "✅ connected",
-                    "plugins": "✅ loaded" if plugin_ready else "⚠️ not loaded"
+            Readiness probe that checks if the application is ready to serve traffic.
+            Validates database connectivity and essential services.
+            """
+            try:
+                # Test database connection
+                from sqlalchemy import text
+                from app.db.session import get_db
+                
+                async for db in get_db():
+                    await db.execute(text("SELECT 1"))
+                    break
+                
+                # Check plugin system
+                plugin_ready = _plugin_manager is not None if _plugin_manager else False
+                
+                return {
+                    "status": "ready",
+                    "timestamp": time.time(),
+                    "checks": {
+                        "database": "✅ connected",
+                        "plugins": "✅ loaded" if plugin_ready else "⚠️ not loaded"
+                    }
                 }
-            }
-        except Exception as e:
-            logging.error(f"Readiness check failed: {e}")
-            raise HTTPException(status_code=503, detail="Service not ready")
+            except Exception as e:
+                logging.error(f"Readiness check failed: {e}")
+                raise HTTPException(status_code=503, detail="Service not ready")
 
-# --- Additional plugin status endpoint ---
-@app.get("/plugins/status", tags=["Plugins"], summary="🔌 Plugin Status", description="Get status of all plugins")
-async def get_plugin_status():
-    """
-    🔌 **Plugin Status Overview**
-    
-    Returns the current status of all discovered and loaded plugins.
-    """
-    if not _plugin_manager:
-        return {"message": "Plugin system not initialized", "plugins": {}}
-    
-    status = _plugin_manager.get_plugin_status()
-    return {
-        "message": "Plugin system operational",
-        "total_plugins": len(status),
-        "plugins": status
-    }
+    # --- Additional plugin status endpoint ---
+    @app.get("/plugins/status", tags=["Plugins"], summary="🔌 Plugin Status", description="Get status of all plugins")
+    async def get_plugin_status():
+        """
+        🔌 **Plugin Status Overview**
+        
+        Returns the current status of all discovered and loaded plugins.
+        """
+        if not _plugin_manager:
+            return {"message": "Plugin system not initialized", "plugins": {}}
+        
+        status = _plugin_manager.get_plugin_status()
+        return {
+            "message": "Plugin system operational",
+            "total_plugins": len(status),
+            "plugins": status
+        }
+
+    return app
+
+# Create the app instance
+app = create_app()
 
 # --- Development server (optional, for direct execution) ---
 if __name__ == "__main__":

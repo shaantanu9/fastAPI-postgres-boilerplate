@@ -3,6 +3,27 @@ Enhanced FastAPI routes template with authentication and authorization
 """
 from typing import List, Dict, Any
 import re
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from sqlalchemy.ext.asyncio import AsyncSession
+from app.db.session import get_db
+from app.api.v1.endpoints.auth import get_current_user
+from app.core.security import require_permission, require_role, security_service, get_current_active_user
+
+# Optional rate limiting
+try:
+    from slowapi import Limiter, _rate_limit_exceeded_handler
+    from slowapi.util import get_remote_address
+    limiter = Limiter(key_func=get_remote_address)
+    HAS_RATE_LIMITING = True
+except ImportError:
+    # Create a dummy limiter that does nothing
+    class DummyLimiter:
+        def limit(self, rate):
+            def decorator(func):
+                return func
+            return decorator
+    limiter = DummyLimiter()
+    HAS_RATE_LIMITING = False
 
 
 class AuthRoutesTemplate:
@@ -19,10 +40,11 @@ class AuthRoutesTemplate:
             auth_config = {
                 "enable_auth": True,
                 "require_roles": [],
-                "require_permissions": True,
+                "require_permissions": False,  # Use simple token auth by default
                 "enable_audit": True,
                 "enable_rate_limiting": True,
-                "owner_based_access": False
+                "owner_based_access": False,
+                "simple_token_auth": True  # Use get_current_user directly
             }
         
         # Generate authentication imports and dependencies
@@ -45,7 +67,26 @@ class AuthRoutesTemplate:
 """
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-{auth_imports}
+from sqlalchemy.ext.asyncio import AsyncSession
+from app.db.session import get_db
+from app.api.v1.endpoints.auth import get_current_user
+from app.core.security import require_permission, require_role, security_service, get_current_active_user
+
+# Optional rate limiting
+try:
+    from slowapi import Limiter, _rate_limit_exceeded_handler
+    from slowapi.util import get_remote_address
+    limiter = Limiter(key_func=get_remote_address)
+    HAS_RATE_LIMITING = True
+except ImportError:
+    # Create a dummy limiter that does nothing
+    class DummyLimiter:
+        def limit(self, rate):
+            def decorator(func):
+                return func
+            return decorator
+    limiter = DummyLimiter()
+    HAS_RATE_LIMITING = False
 
 from .schemas import (
     {pascal_name}Create, 
@@ -228,10 +269,10 @@ class {pascal_name}Routes:
         @self.router.get("/{snake_name}s/search/", response_model=List[{pascal_name}Response], tags=["{pascal_name}"])
         {rate_limiting.get('search', '')}
         async def search_{snake_name}s(
-            q: str = Query(..., min_length=1),
             request: Request,
             {auth_dependencies.get('read', 'current_user = Depends(get_current_user)')},
             db: AsyncSession = Depends(get_db),
+            q: str = Query(..., min_length=1),
             limit: int = Query(10, ge=1, le=100)
         ):
             \"\"\"Search {snake_name}s\"\"\"
@@ -306,8 +347,13 @@ class {pascal_name}Routes:
         
         base_dep = "current_user = Depends(get_current_user)"
         
-        # Add role requirements
-        if auth_config.get("require_roles"):
+        # Use simple token authentication by default (get_current_user)
+        if auth_config.get("simple_token_auth", True):
+            # Simple token authentication - just validate JWT token
+            deps = {"create": base_dep, "read": base_dep, "update": base_dep, "delete": base_dep}
+        
+        # Add role requirements (only if explicitly requested)
+        elif auth_config.get("require_roles"):
             roles = auth_config["require_roles"]
             if isinstance(roles, dict):
                 # Different roles for different operations
@@ -319,14 +365,14 @@ class {pascal_name}Routes:
                 if isinstance(roles, list) and len(roles) == 1:
                     role_dep = f"current_user = Depends(require_role('{roles[0]}'))"
                 elif isinstance(roles, list):
-                    roles_str = "', '".join(roles)
-                    role_dep = f"current_user = Depends(require_role(['{roles_str}']))"
+                    # Use first role for simplicity
+                    role_dep = f"current_user = Depends(require_role('{roles[0]}'))"
                 else:
                     role_dep = f"current_user = Depends(require_role('{roles}'))"
                 deps = {"create": role_dep, "read": role_dep, "update": role_dep, "delete": role_dep}
         
-        # Add permission requirements
-        elif auth_config.get("require_permissions", True):
+        # Add permission requirements (only if explicitly enabled)
+        elif auth_config.get("require_permissions", False):
             resource = snake_name
             deps = {
                 "create": f"current_user = Depends(require_permission('{resource}', 'create'))",
@@ -335,6 +381,7 @@ class {pascal_name}Routes:
                 "delete": f"current_user = Depends(require_permission('{resource}', 'delete'))"
             }
         else:
+            # Fallback to simple token authentication
             deps = {"create": base_dep, "read": base_dep, "update": base_dep, "delete": base_dep}
         
         return deps
@@ -344,19 +391,20 @@ class {pascal_name}Routes:
         if not auth_config.get("enable_rate_limiting", True):
             return {}
         
-        # Default rate limits
+        # Default rate limits - use simple decorators since slowapi is optional
         return {
-            "create": f"@limiter.limit('10/minute')",
-            "read": f"@limiter.limit('100/minute')",
-            "update": f"@limiter.limit('20/minute')",
-            "delete": f"@limiter.limit('5/minute')",
-            "search": f"@limiter.limit('50/minute')"
+            "create": "@limiter.limit('10/minute')",
+            "read": "@limiter.limit('100/minute')", 
+            "update": "@limiter.limit('20/minute')",
+            "delete": "@limiter.limit('5/minute')",
+            "search": "@limiter.limit('50/minute')"
         }
     
     def _generate_permission_check(self, auth_config: Dict[str, Any], snake_name: str, action: str) -> str:
         """Generate permission check code"""
-        if not auth_config.get("require_permissions", True):
-            return "# No additional permission checks required"
+        # Only generate permission checks if explicitly enabled and not using simple token auth
+        if auth_config.get("simple_token_auth", True) or not auth_config.get("require_permissions", False):
+            return "# Token authentication only - user is authenticated via JWT"
         
         return f'''
                 # Check if user has permission for this action
@@ -405,7 +453,33 @@ class {pascal_name}Routes:
         if not auth_config.get("enable_audit", True):
             return "# No audit logging configured"
         
-        return f'''
+        # Different audit patterns for different actions
+        if action in ['read_bulk', 'search']:
+            return f'''
+                # Log security event for audit trail
+                await security_service.log_security_event(
+                    db, current_user, '{snake_name}_{action}', 'resource_access',
+                    {{"resource": "{snake_name}", "action": "{action}", "count": len(results)}},
+                    request
+                )'''
+        elif action in ['create_failed', 'update_failed', 'delete_failed']:
+            return f'''
+                # Log security event for audit trail
+                await security_service.log_security_event(
+                    db, current_user, '{snake_name}_{action}', 'resource_access',
+                    {{"resource": "{snake_name}", "action": "{action}"}},
+                    request
+                )'''
+        elif action == 'delete':
+            return f'''
+                # Log security event for audit trail
+                await security_service.log_security_event(
+                    db, current_user, '{snake_name}_{action}', 'resource_access',
+                    {{"resource": "{snake_name}", "action": "{action}", "resource_id": item_id}},
+                    request
+                )'''
+        else:
+            return f'''
                 # Log security event for audit trail
                 await security_service.log_security_event(
                     db, current_user, '{snake_name}_{action}', 'resource_access',

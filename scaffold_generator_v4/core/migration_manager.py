@@ -157,4 +157,45 @@ class MigrationManager:
                 
         except Exception as e:
             print(f"❌ Stamp error: {e}")
+            return False
+    
+    def fix_alembic_state(self):
+        """Fix corrupted Alembic state by resetting to latest valid revision"""
+        try:
+            print("🔧 Fixing Alembic state...")
+            
+            # Get the latest revision from history
+            result = subprocess.run(['alembic', 'history'], capture_output=True, text=True)
+            if result.returncode != 0:
+                print(f"❌ Failed to get Alembic history: {result.stderr}")
+                return False
+            
+            # Parse the history to find the head revision
+            lines = result.stdout.strip().split('\n')
+            head_revision = None
+            for line in lines:
+                if '(head)' in line:
+                    # Extract revision ID from line like "6aa199c2e923 -> 4231a548294e (head), ..."
+                    parts = line.split(' -> ')
+                    if len(parts) > 1:
+                        head_revision = parts[1].split(' ')[0]
+                        break
+            
+            if not head_revision:
+                print("❌ Could not find head revision")
+                return False
+            
+            print(f"🎯 Found head revision: {head_revision}")
+            
+            # Stamp the database with the head revision
+            result = subprocess.run(['alembic', 'stamp', head_revision], capture_output=True, text=True)
+            if result.returncode == 0:
+                print(f"✅ Successfully reset Alembic state to {head_revision}")
+                return True
+            else:
+                print(f"❌ Failed to stamp revision: {result.stderr}")
+                return False
+                
+        except Exception as e:
+            print(f"❌ Error fixing Alembic state: {e}")
             return False 

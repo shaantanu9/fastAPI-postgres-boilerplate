@@ -107,7 +107,7 @@ def initialize_plugin():
 
 
 # Plugin entry point
-def register_plugin(app, plugin_manager):
+def register_plugin(app, context):
     """Register plugin with the application"""
     try:
         # Register routes
@@ -118,14 +118,14 @@ def register_plugin(app, plugin_manager):
             tags=["{pascal_name}"]
         )
         
-        # Register services
+        # Register services with context (not plugin_manager)
         service = {pascal_name}Service()
-        plugin_manager.register_service("{snake_name}", service)
+        context.register_service("{snake_name}", service)
         
         # Register tasks if available
         {f'''if hasattr({pascal_name}Routes, 'TASKS'):
             for task_name, task_func in TASKS.items():
-                plugin_manager.register_task(task_name, task_func)''' if with_tasks else '# No tasks to register'}
+                context.register_task(task_name, task_func)''' if with_tasks else '# No tasks to register'}
         
         print(f"✅ {pascal_name} plugin registered successfully")
         return True
