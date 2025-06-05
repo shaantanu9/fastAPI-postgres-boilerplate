@@ -13,6 +13,8 @@ from app.api.v1.endpoints import listing
 from app.api.v1.endpoints import jobs
 from app.api.v1.endpoints import organizations
 from app.api.v1.endpoints import email_integration
+from app.api.v1.endpoints import rate_limit_test
+from app.api.v1.endpoints.timeout_test import router as timeout_test_router
 
 api_router = APIRouter()
 
@@ -37,3 +39,7 @@ api_router.include_router(bulk_operations.router, tags=["bulk-operations"])
 api_router.include_router(procrastinate_tasks.router, prefix="/procrastinate", tags=["procrastinate-tasks"])
 api_router.include_router(examples.router, prefix="/examples", tags=["examples"])
 api_router.include_router(plugins.router, prefix="/system", tags=["plugin-management"])
+
+# Include test endpoints with proper prefixes
+api_router.include_router(rate_limit_test.router, prefix="/test/rate-limit", tags=["rate-limit-tests"])
+api_router.include_router(timeout_test_router, prefix="/test/timeout", tags=["timeout-tests"])

@@ -15,23 +15,44 @@ Sections:
 """
 import os
 import sys
-from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import JSONResponse
-from sqlalchemy.exc import SQLAlchemyError
+import asyncio
 import logging
-from app.core.logging import setup_logging
-from app.core.config import get_settings
-from app.db.base import Base
-from app.db.session import engine
-from app.api.v1.api import api_router
-from app.core.exception_handlers import (
-    AppException,
-    app_exception_handler,
-    http_exception_handler,
-    sqlalchemy_exception_handler,
-    generic_exception_handler,
+import time
+from contextlib import asynccontextmanager
+from typing import Dict, Any, Optional
+
+from fastapi import FastAPI, Request, Depends, status
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError, HTTPException
+from starlette.exceptions import HTTPException as StarletteHTTPException
+from slowapi.errors import RateLimitExceeded
+
+# Import rate limiting components
+from app.core.rate_limiting import (
+    setup_rate_limiting,
+    enhanced_rate_limit_exceeded_handler,
+    get_rate_limiter,
+    get_rate_limiter_dependency,
+    RateLimitConfig,
+    get_rate_limit_config
 )
+
+# Import timeout components
+from app.core.timeouts import (
+    TimeoutException,
+    Timeouts,
+    with_timeout,
+    database_timeout_context
+)
+from app.middleware.timeout_middleware import TimeoutMiddleware
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Global timeout configuration (in seconds)
+GLOBAL_REQUEST_TIMEOUT = 30.0
 
 # Import tenant middleware for multi-tenancy support
 from app.middleware.tenant_middleware import TenantMiddleware, TenantIsolationMiddleware
@@ -54,9 +75,36 @@ from app.middleware.logging_middleware import LoggingMiddleware, SecurityLogging
 from app.core.metrics import metrics
 from app.api.v1.endpoints.health import router as health_router
 
+# --- Import core functions ---
+try:
+    from app.core.logging import setup_logging
+    from app.core.config import get_settings
+    from app.api.v1.api import api_router
+    CORE_IMPORTS_AVAILABLE = True
+except ImportError as e:
+    logger.warning(f"Core imports not available: {e}")
+    CORE_IMPORTS_AVAILABLE = False
+    
+    # Provide minimal fallbacks
+    def setup_logging(**kwargs):
+        pass
+    
+    def get_settings():
+        class Settings:
+            PROJECT_NAME = "FastAPI App"
+            VERSION = "1.0.0"
+            API_V1_STR = "/api/v1"
+            LOG_LEVEL = "INFO"
+            ENVIRONMENT = "development"
+        return Settings()
+
 # --- Logging and settings initialization ---
-setup_logging()  # Configure loguru and std logging
-settings = get_settings()  # Load environment variables and app config
+if CORE_IMPORTS_AVAILABLE:
+    setup_logging()  # Configure loguru and std logging
+    settings = get_settings()  # Load environment variables and app config
+else:
+    logging.basicConfig(level=logging.INFO)
+    settings = get_settings()
 
 # Global plugin manager reference
 _plugin_manager = None
@@ -171,6 +219,14 @@ def create_app() -> FastAPI:
     app.add_middleware(SecurityLoggingMiddleware)
     app.add_middleware(LoggingMiddleware, skip_paths=['/health', '/metrics', '/docs', '/openapi.json'])
     
+    # Add timeout middleware with enhanced features
+    app.add_middleware(
+        TimeoutMiddleware,
+        timeout_seconds=GLOBAL_REQUEST_TIMEOUT,
+        warning_threshold=0.8,  # Warn at 80% of timeout
+        enable_metrics=True
+    )
+    
     # Set application info for metrics
     metrics.set_app_info(
         version=settings.VERSION,
@@ -207,10 +263,35 @@ def create_app() -> FastAPI:
         logging.warning("⚠️ Advanced middleware features not available")
 
     # --- Exception handlers ---
-    app.add_exception_handler(AppException, app_exception_handler)
-    app.add_exception_handler(HTTPException, http_exception_handler)
-    app.add_exception_handler(SQLAlchemyError, sqlalchemy_exception_handler)
-    app.add_exception_handler(Exception, generic_exception_handler)
+    try:
+        from app.core.exception_handlers import (
+            app_exception_handler,
+            http_exception_handler, 
+            sqlalchemy_exception_handler,
+            generic_exception_handler,
+            AppException
+        )
+        from sqlalchemy.exc import SQLAlchemyError
+        
+        app.add_exception_handler(AppException, app_exception_handler)
+        app.add_exception_handler(HTTPException, http_exception_handler)
+        app.add_exception_handler(SQLAlchemyError, sqlalchemy_exception_handler)
+        app.add_exception_handler(RateLimitExceeded, enhanced_rate_limit_exceeded_handler)
+        app.add_exception_handler(Exception, generic_exception_handler)
+        
+    except ImportError as e:
+        logger.warning(f"Some exception handlers not available: {e}")
+        # Add basic exception handlers
+        app.add_exception_handler(RateLimitExceeded, enhanced_rate_limit_exceeded_handler)
+    
+    # Setup rate limiting (must be after all other middleware and exception handlers)
+    async def setup_rate_limiting_wrapper():
+        await setup_rate_limiting(app)
+    
+    # Add rate limiting setup to startup
+    @app.on_event("startup")
+    async def startup_rate_limiting():
+        await setup_rate_limiting_wrapper()
 
     # --- Request logging middleware ---
     import time

@@ -1,0 +1,29 @@
+🔧 Alembic context detected - importing plugin models for autogenerate
+✅ Core authentication models imported for Alembic
+🔍 Scanning for plugin models in /Users/shantanubombatkar/Documents/code/codeSn/fastAPI_PostGres/app/plugins
+✅ Discovered v4 model: TestItem from test_item_plugin
+⚠️ Warning: Could not import models from v4 plugin product_test_plugin: unexpected indent (models.py, line 15)
+  Generating /Users/shantanubombatkar/Documents/code/codeSn/fastAPI_PostGres/alembic/versions/95a505110f17_s
+  mart_migration_producttest_add_.py ...  done
+🚀 Normal app startup - skipping plugin model import to avoid conflicts
+🧠 Generating Smart Migration for ProductTest
+==================================================
+🧠 Generating Smart Migration for ProductTest
+==================================================
+🔧 Step 1: Applying changes to model file...
+   🔒 Added CHECK constraint: check_price
+   ✅ Applied 1 change(s) to models.py
+✅ Model file updated successfully
+✅ Step 2: Current schema analyzed
+✅ Step 3: Migration plan created: add_constraint
+✅ Step 4: Migration file generated: 95a505110f17_smart_migration_producttest_add_.py
+✅ Step 5: Rollback strategy generated: rollback_producttests_20250603_133218.py
+✅ Step 6: Migration validation passed
+
+🎯 Smart Migration Ready!
+📂 Migration file: 95a505110f17_smart_migration_producttest_add_.py
+📋 Rollback strategy: rollback_producttests_20250603_133218.py
+⏱️ Estimated duration: 1-5 minutes
+🔒 Zero downtime: True
+
+🚀 Apply migration now? (y/N): 

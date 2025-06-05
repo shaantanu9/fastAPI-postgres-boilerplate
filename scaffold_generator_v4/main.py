@@ -19,15 +19,19 @@ Usage:
 import argparse
 import sys
 from pathlib import Path
+from typing import List
 
 # Import modular components
 from .core import FieldValidator, MigrationManager, InfrastructureChecker, PluginValidator
 from .templates import (
     ModelsTemplate, SchemasTemplate, ServicesTemplate,
-    RoutesTemplate, TasksTemplate, InitTemplate
+    RoutesTemplate, EnhancedRoutesTemplate, TasksTemplate, InitTemplate
 )
 from .templates.auth_routes_template import AuthRoutesTemplate
 from .templates.auth_models_template import AuthModelsTemplate
+from .analyzers import ArchitectureAnalyzer
+from .testing import TestGenerator, TestConfig
+from .migrations import SmartMigrationManager
 
 
 class ScaffoldGeneratorV4:
@@ -40,12 +44,18 @@ class ScaffoldGeneratorV4:
         self.migration_manager = MigrationManager(self.infrastructure_checker)
         self.plugin_validator = PluginValidator()
         
+        # Initialize new advanced components
+        self.architecture_analyzer = ArchitectureAnalyzer()
+        self.test_generator = TestGenerator()
+        self.smart_migration_manager = SmartMigrationManager()
+        
         # Initialize templates
         self.templates = {
             'models': ModelsTemplate(),
             'schemas': SchemasTemplate(),
             'services': ServicesTemplate(),
             'routes': RoutesTemplate(),
+            'enhanced_routes': EnhancedRoutesTemplate(),
             'tasks': TasksTemplate(),
             'init': InitTemplate()
         }
@@ -57,7 +67,7 @@ class ScaffoldGeneratorV4:
         }
     
     def add_plugin(self, model_name: str, fields: list, with_tasks: bool = False, with_bulk: bool = False, 
-                  with_auth: bool = False, auth_config: dict = None):
+                  with_auth: bool = False, auth_config: dict = None, with_timeouts: bool = True):
         """Generate a new modular plugin"""
         print(f"🚀 Generating {model_name} Plugin with Modular Architecture")
         print("=" * 55)
@@ -84,7 +94,7 @@ class ScaffoldGeneratorV4:
             
             # 4. Generate modular files
             print(f"\n🏗️ Step 4: Generating Modular Files")
-            self._generate_plugin_files(plugin_dir, model_name, validated_fields, with_tasks, with_bulk, with_auth, auth_config)
+            self._generate_plugin_files(plugin_dir, model_name, validated_fields, with_tasks, with_bulk, with_auth, auth_config, with_timeouts)
             
             # 5. Generate migration
             print(f"\n🗄️ Step 5: Database Migration")
@@ -114,7 +124,7 @@ class ScaffoldGeneratorV4:
         return plugin_dir
     
     def _generate_plugin_files(self, plugin_dir: Path, model_name: str, validated_fields: list, 
-                             with_tasks: bool, with_bulk: bool, with_auth: bool = False, auth_config: dict = None):
+                             with_tasks: bool, with_bulk: bool, with_auth: bool = False, auth_config: dict = None, with_timeouts: bool = True):
         """Generate all modular plugin files"""
         
         # Choose templates based on authentication requirement
@@ -135,10 +145,15 @@ class ScaffoldGeneratorV4:
             (plugin_dir / "models.py").write_text(models_content)
             print("  ✅ models.py")
             
-            # Generate routes.py (standard)
-            routes_content = self.templates['routes'].generate(model_name, validated_fields, with_bulk)
-            (plugin_dir / "routes.py").write_text(routes_content)
-            print("  ✅ routes.py")
+            # Generate routes.py (choose enhanced or standard)
+            if with_timeouts:
+                routes_content = self.templates['enhanced_routes'].generate(model_name, validated_fields, with_bulk)
+                (plugin_dir / "routes.py").write_text(routes_content)
+                print("  ✅ routes.py (with timeout support)")
+            else:
+                routes_content = self.templates['routes'].generate(model_name, validated_fields, with_bulk)
+                (plugin_dir / "routes.py").write_text(routes_content)
+                print("  ✅ routes.py (standard)")
         
         # Generate schemas.py (always use standard for now)
         schemas_content = self.templates['schemas'].generate(model_name, validated_fields, self.field_validator)
@@ -837,6 +852,202 @@ class ScaffoldGeneratorV4:
         
         return self.add_plugin(model_name, fields, with_tasks, with_bulk, True, auth_config)
     
+    def analyze_architecture(self, output_file: str = None, format_type: str = 'text') -> bool:
+        """Analyze project architecture and generate report"""
+        print("🔍 Starting Architecture Analysis")
+        print("=" * 40)
+        
+        try:
+            # Run architecture analysis
+            report = self.architecture_analyzer.analyze_project()
+            
+            # Generate report
+            output_path = Path(output_file) if output_file else None
+            
+            if format_type == 'json':
+                # Convert report to JSON
+                report_data = {
+                    'health_score': report.health_score,
+                    'metrics': report.metrics,
+                    'plugins': [
+                        {
+                            'name': p.name,
+                            'models': p.models,
+                            'routes': p.routes,
+                            'dependencies': p.dependencies,
+                            'size_metrics': p.size_metrics,
+                            'complexity_score': p.complexity_score
+                        } for p in report.plugins
+                    ],
+                    'issues': [
+                        {
+                            'type': i.type,
+                            'source': i.source,
+                            'target': i.target,
+                            'severity': i.severity,
+                            'description': i.description,
+                            'suggestion': i.suggestion
+                        } for i in report.issues
+                    ],
+                    'recommendations': report.recommendations,
+                    'dependency_graph': report.dependency_graph
+                }
+                
+                if output_path:
+                    import json
+                    output_path.write_text(json.dumps(report_data, indent=2))
+                    print(f"📄 JSON report saved to: {output_path}")
+                else:
+                    import json
+                    print(json.dumps(report_data, indent=2))
+            else:
+                # Generate text report
+                report_text = self.architecture_analyzer.generate_report(report, output_path)
+                if not output_path:
+                    print(report_text)
+            
+            print(f"\n🎉 Architecture analysis completed!")
+            print(f"📊 Health Score: {report.health_score:.1f}%")
+            return True
+            
+        except Exception as e:
+            print(f"❌ Architecture analysis failed: {e}")
+            return False
+    
+    def generate_test_suite(self, model_name: str, test_types: List[str], output_dir: str = None, with_auth: bool = False) -> bool:
+        """Generate comprehensive test suite for a plugin"""
+        print(f"🧪 Generating Test Suite for {model_name}")
+        print("=" * 45)
+        
+        try:
+            # Find the plugin to get its details
+            import re
+            snake_name = re.sub(r'(?<!^)(?=[A-Z])', '_', model_name).lower()
+            plugin_dir = Path(f"app/plugins/{snake_name}_plugin")
+            
+            if not plugin_dir.exists():
+                print(f"❌ Plugin not found: {plugin_dir}")
+                return False
+            
+            # Extract models and routes from plugin
+            models = self._extract_models_from_plugin(plugin_dir)
+            routes = self._extract_routes_from_plugin(plugin_dir)
+            
+            # Set up test configuration
+            test_output_dir = Path(output_dir) if output_dir else Path(f"tests/plugins/{snake_name}_plugin")
+            
+            config = TestConfig(
+                plugin_name=model_name,
+                models=models,
+                routes=routes,
+                test_types=test_types,
+                output_dir=test_output_dir,
+                include_auth=with_auth,
+                include_performance='load' in test_types
+            )
+            
+            # Generate test suite
+            success = self.test_generator.generate_test_suite(config)
+            
+            if success:
+                print(f"\n🎉 Test suite generated successfully!")
+                print(f"📂 Location: {test_output_dir}")
+                print(f"🧪 Test types: {', '.join(test_types)}")
+                print(f"\n💡 Next steps:")
+                print(f"   • Install test dependencies: pip install pytest pytest-asyncio httpx")
+                print(f"   • Run tests: pytest {test_output_dir}")
+                if 'load' in test_types:
+                    print(f"   • Install Locust for load tests: pip install locust")
+                    print(f"   • Run load tests: locust -f {test_output_dir}/load/test_{model_name}_load.py")
+            
+            return success
+            
+        except Exception as e:
+            print(f"❌ Test generation failed: {e}")
+            return False
+    
+    def generate_smart_migration(self, model_name: str, changes: List[str] = None, auto_apply: bool = False) -> bool:
+        """Generate smart migration with zero-downtime strategies"""
+        print(f"🧠 Generating Smart Migration for {model_name}")
+        print("=" * 50)
+        
+        try:
+            # Set auto-apply mode in the migration manager
+            if auto_apply:
+                # Temporarily override the input function for auto-apply
+                import builtins
+                original_input = builtins.input
+                builtins.input = lambda prompt: "y"
+                
+                try:
+                    success = self.smart_migration_manager.generate_smart_migration(model_name, changes)
+                finally:
+                    builtins.input = original_input
+            else:
+                success = self.smart_migration_manager.generate_smart_migration(model_name, changes)
+            
+            if success:
+                print(f"\n🎉 Smart migration completed successfully!")
+                print(f"💡 Features included:")
+                print(f"   • Automatic model file modification")
+                print(f"   • Zero-downtime strategy analysis")
+                print(f"   • Risk assessment and mitigation")
+                print(f"   • Rollback strategy planning")
+                print(f"   • Migration validation and application")
+            
+            return success
+            
+        except Exception as e:
+            print(f"❌ Smart migration generation failed: {e}")
+            return False
+    
+    def _extract_models_from_plugin(self, plugin_dir: Path) -> List[str]:
+        """Extract model names from plugin directory"""
+        models_file = plugin_dir / "models.py"
+        if not models_file.exists():
+            return []
+        
+        try:
+            import ast
+            with open(models_file, 'r') as f:
+                tree = ast.parse(f.read())
+            
+            models = []
+            for node in ast.walk(tree):
+                if isinstance(node, ast.ClassDef):
+                    # Check if it's a SQLAlchemy model
+                    for base in node.bases:
+                        if isinstance(base, ast.Name) and base.id == 'Base':
+                            models.append(node.name)
+                            break
+            return models
+        except Exception:
+            return []
+    
+    def _extract_routes_from_plugin(self, plugin_dir: Path) -> List[str]:
+        """Extract route information from plugin directory"""
+        routes_file = plugin_dir / "routes.py"
+        if not routes_file.exists():
+            return []
+        
+        try:
+            import ast
+            with open(routes_file, 'r') as f:
+                tree = ast.parse(f.read())
+            
+            routes = []
+            for node in ast.walk(tree):
+                if isinstance(node, ast.FunctionDef):
+                    # Look for FastAPI route decorators
+                    for decorator in node.decorator_list:
+                        if isinstance(decorator, ast.Call):
+                            if isinstance(decorator.func, ast.Attribute):
+                                if decorator.func.attr in ['get', 'post', 'put', 'delete', 'patch']:
+                                    routes.append(f"{decorator.func.attr.upper()} {node.name}")
+            return routes
+        except Exception:
+            return []
+    
     def _extract_fields_from_model(self, model_file: Path) -> list:
         """Extract field definitions from existing model file"""
         if not model_file.exists():
@@ -958,6 +1169,27 @@ Examples:
     auth_preset_parser.add_argument('--with-tasks', action='store_true', help='Include background tasks')
     auth_preset_parser.add_argument('--with-bulk', action='store_true', help='Include bulk operations')
     
+    # Architecture analysis command
+    analyze_parser = subparsers.add_parser('analyze', help='Analyze project architecture')
+    analyze_parser.add_argument('--output', help='Output file for analysis report')
+    analyze_parser.add_argument('--format', choices=['text', 'json'], default='text', help='Output format')
+    
+    # Test generation command
+    test_parser = subparsers.add_parser('generate-tests', help='Generate comprehensive test suite')
+    test_parser.add_argument('model', help='Model name to generate tests for')
+    test_parser.add_argument('--types', nargs='+', choices=['unit', 'integration', 'e2e', 'load'], 
+                           default=['unit', 'integration'], help='Types of tests to generate')
+    test_parser.add_argument('--output-dir', help='Output directory for tests')
+    test_parser.add_argument('--with-auth', action='store_true', help='Include authentication in tests')
+    
+    # Smart migration command
+    smart_migration_parser = subparsers.add_parser('smart-migration', help='Generate smart migration with zero-downtime strategies')
+    smart_migration_parser.add_argument('model', help='Model name for migration')
+    smart_migration_parser.add_argument('--changes', nargs='*', 
+                                      help='Specific changes to apply (e.g. add_column:status:str:default=active, drop_column:old_field)')
+    smart_migration_parser.add_argument('--auto-apply', action='store_true', 
+                                      help='Automatically apply the migration without prompting')
+    
     args = parser.parse_args()
     
     if not args.command:
@@ -1047,6 +1279,18 @@ Examples:
             return
         
         success = generator.generate_with_auth_preset(args.preset, args.model, args.fields, args.with_tasks, args.with_bulk)
+        sys.exit(0 if success else 1)
+    
+    elif args.command == 'analyze':
+        success = generator.analyze_architecture(args.output, args.format)
+        sys.exit(0 if success else 1)
+    
+    elif args.command == 'generate-tests':
+        success = generator.generate_test_suite(args.model, args.types, args.output_dir, args.with_auth)
+        sys.exit(0 if success else 1)
+    
+    elif args.command == 'smart-migration':
+        success = generator.generate_smart_migration(args.model, args.changes, args.auto_apply)
         sys.exit(0 if success else 1)
 
 

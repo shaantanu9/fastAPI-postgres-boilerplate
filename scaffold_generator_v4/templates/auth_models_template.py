@@ -53,7 +53,7 @@ class AuthModelsTemplate:
         template = f'''"""
 {pascal_name} SQLAlchemy model with enterprise authentication
 """
-from sqlalchemy import Column, Integer, String, Boolean, Float, Text, DateTime, Date, JSON, ForeignKey
+from sqlalchemy import Column, Integer, String, Boolean, Float, Text, DateTime, Date, JSON, Numeric, ForeignKey
 from sqlalchemy.orm import relationship
 from datetime import datetime
 {imports}

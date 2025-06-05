@@ -6,6 +6,7 @@ from .models_template import ModelsTemplate
 from .schemas_template import SchemasTemplate
 from .services_template import ServicesTemplate
 from .routes_template import RoutesTemplate
+from .enhanced_routes_template import EnhancedRoutesTemplate
 from .tasks_template import TasksTemplate
 from .init_template import InitTemplate
 from .auth_routes_template import AuthRoutesTemplate
@@ -16,6 +17,7 @@ __all__ = [
     'SchemasTemplate', 
     'ServicesTemplate',
     'RoutesTemplate',
+    'EnhancedRoutesTemplate',
     'TasksTemplate',
     'InitTemplate',
     'AuthRoutesTemplate',

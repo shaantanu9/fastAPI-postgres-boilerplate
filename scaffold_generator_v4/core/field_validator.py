@@ -32,6 +32,7 @@ class FieldValidator:
             'text': 'Text',
             'int': 'Integer',
             'float': 'Float',
+            'decimal': 'Numeric',
             'bool': 'Boolean',
             'date': 'Date',
             'datetime': 'DateTime',
@@ -52,7 +53,16 @@ class FieldValidator:
         
         field_name = parts[0].strip()
         field_type = parts[1].strip()
-        constraints = parts[2:] if len(parts) > 2 else []
+        constraints = []
+        
+        # Handle complex constraints like precision=10,scale=2
+        for part in parts[2:]:
+            if ',' in part and ('precision=' in part or 'scale=' in part):
+                # Split precision=10,scale=2 into separate constraints
+                sub_constraints = part.split(',')
+                constraints.extend([c.strip() for c in sub_constraints])
+            else:
+                constraints.append(part.strip())
         
         # Validate field name
         if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', field_name):
@@ -91,6 +101,19 @@ class FieldValidator:
                 length = constraint.split('=')[1]
                 if field_type in ['str', 'email', 'url']:
                     column_type = f'String({length})'
+            elif constraint.startswith('precision='):
+                if field_type == 'decimal':
+                    precision = constraint.split('=')[1]
+                    # Look for scale in other constraints
+                    scale = None
+                    for other_constraint in constraints:
+                        if other_constraint.startswith('scale='):
+                            scale = other_constraint.split('=')[1]
+                            break
+                    if scale:
+                        column_type = f'Numeric({precision}, {scale})'
+                    else:
+                        column_type = f'Numeric({precision})'
             elif constraint == 'unique':
                 column_args.append('unique=True')
             elif constraint == 'indexed':
