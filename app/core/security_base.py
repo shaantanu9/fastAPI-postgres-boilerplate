@@ -1,22 +1,23 @@
-"""
-Core security base module containing the EnterpriseSecurityService class.
+"""Core security base module containing the EnterpriseSecurityService class.
 This module is separate to avoid circular imports.
 """
 
-from datetime import datetime, timedelta
-from typing import Dict, Any
-from passlib.context import CryptContext
 import re
+from datetime import timedelta
+from typing import Any
+
+from passlib.context import CryptContext
+
 
 class EnterpriseSecurityService:
-    def __init__(self):
+    def __init__(self) -> None:
         self.pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
         self.MAX_LOGIN_ATTEMPTS = 5
         self.LOCKOUT_DURATION = timedelta(minutes=30)
         self.PASSWORD_HISTORY_COUNT = 5
 
-    def validate_password_strength(self, password: str) -> Dict[str, Any]:
-        """Enforce 2025 enterprise password policy"""
+    def validate_password_strength(self, password: str) -> dict[str, Any]:
+        """Enforce 2025 enterprise password policy."""
         errors = []
         score = 0
 
@@ -79,21 +80,20 @@ class EnterpriseSecurityService:
             "valid": len(errors) == 0,
             "errors": errors,
             "strength": strength,
-            "score": score
+            "score": score,
         }
 
     def hash_password(self, password: str) -> str:
-        """Hash password using bcrypt"""
+        """Hash password using bcrypt."""
         return self.pwd_context.hash(password)
 
     def verify_password(self, plain_password: str, hashed_password: str) -> bool:
-        """Verify password against hash"""
+        """Verify password against hash."""
         return self.pwd_context.verify(plain_password, hashed_password)
-    
-    def init_app(self, app):
-        """Initialize the security service with the FastAPI app"""
+
+    def init_app(self, app) -> None:
+        """Initialize the security service with the FastAPI app."""
         # Store the app reference for any future use
         self.app = app
-        
+
         # Set up any app-specific security configurations
-        print("🔒 Enterprise Security Service initialized with app")

@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-FastAPI Scaffold Generator v4.0 - Standalone Script
+"""FastAPI Scaffold Generator v4.0 - Standalone Script.
 
 This is a convenience script that imports and uses the modular scaffold generator v4.
 The actual generator logic is organized in the scaffold_generator_v4/ package.
@@ -22,4 +21,4 @@ Features:
 from scaffold_generator_v4.main import main
 
 if __name__ == "__main__":
-    main() 
+    main()

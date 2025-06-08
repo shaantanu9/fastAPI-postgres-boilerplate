@@ -59,6 +59,9 @@ dependencies = [
     "slowapi>=0.1.9",
     "python-redis-rate-limit>=0.0.10",
     "python-magic>=0.4.27",
+    "locust>=2.37.10",
+    "bandit[toml]>=1.8.3",
+    "safety>=3.2.4",
 ]
 [tool.poetry.dependencies]
 python = "^3.11"
@@ -66,3 +69,153 @@ fastapi = ">=0.100,<1.0.0"
 pydantic = ">=2.0,<3.0.0"
 fastapi-mcp = "^0.3.3"
 mcp = "^1.8.0"
+
+[dependency-groups]
+dev = [
+    "ruff>=0.11.13",
+]
+
+# Ruff configuration
+[tool.ruff]
+# Set the maximum line length to 88 (Black's default)
+line-length = 88
+# Set the Python version to support
+target-version = "py313"
+# Exclude specific files and directories
+exclude = [
+    ".git",
+    ".venv",
+    "__pycache__",
+    "venv",
+    "node_modules",
+    ".mypy_cache",
+    ".ruff_cache",
+    "alembic/versions/*.py",  # Auto-generated migration files
+    "build",
+    "dist",
+]
+
+[tool.ruff.lint]
+# Enable specific rule sets
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort (import sorting)
+    "N",    # pep8-naming
+    "B",    # flake8-bugbear
+    "A",    # flake8-builtins
+    "C4",   # flake8-comprehensions
+    # "T20",  # flake8-print (disabled to allow print statements)
+    "SIM",  # flake8-simplify
+    "TCH",  # flake8-type-checking
+    "ARG",  # flake8-unused-arguments
+    "PTH",  # flake8-use-pathlib
+    "ERA",  # eradicate (commented code)
+    "UP",   # pyupgrade
+    "RUF",  # Ruff-specific rules
+]
+
+# Ignore specific rules
+ignore = [
+    "E501",    # Line too long (handled by formatter)
+    "B008",    # Do not perform function calls in argument defaults (FastAPI dependencies)
+    "A003",    # Class attribute shadows built-in (common in SQLAlchemy models)
+    "T201",    # Print statements (allow print statements throughout the project)
+    "PTH123",  # Use pathlib.Path.open() instead of open() - legacy code compatibility
+    "PTH110",  # Use pathlib.Path.exists() instead of os.path.exists() - legacy code compatibility
+    "PTH120",  # Use pathlib.Path.parent instead of os.path.dirname() - legacy code compatibility
+    "PTH118",  # Use pathlib.Path / operator instead of os.path.join() - legacy code compatibility
+    "PTH208",  # Use pathlib.Path.iterdir() instead of os.listdir() - legacy code compatibility
+    "PTH119",  # Use pathlib.Path.name instead of os.path.basename() - legacy code compatibility
+    "PTH206",  # Use pathlib.Path.parts instead of .split(os.sep) - legacy code compatibility
+    "PTH104",  # Use pathlib.Path.rename() instead of os.rename() - legacy code compatibility
+    "PTH204",  # Use pathlib.Path.stat().st_mtime instead of os.path.getmtime() - legacy code compatibility
+    "PTH100",  # Use pathlib.Path.resolve() instead of os.path.abspath() - legacy code compatibility
+    "PTH103",  # Use pathlib.Path.mkdir() instead of os.makedirs() - legacy code compatibility
+    "PTH106",  # Use pathlib.Path.rmdir() instead of os.rmdir() - legacy code compatibility
+    "PTH107",  # Use pathlib.Path.unlink() instead of os.remove() - legacy code compatibility
+    "PTH109",  # Use pathlib.Path.cwd() instead of os.getcwd() - legacy code compatibility
+    "B904",    # Missing exception chaining - not critical for existing code
+    "ARG001",  # Unused function argument - common in interface compliance
+    "ARG002",  # Unused method argument - common in interface compliance
+    "ARG005",  # Unused lambda argument - common in functional programming
+    "E402",    # Module import not at top - legacy code structure
+    "N999",    # Invalid module name - auto-generated test files
+    "N806",    # Non-lowercase variable in function - legacy naming conventions
+    "N801",    # Invalid class name - legacy naming conventions
+    "N818",    # Error suffix on exception name - legacy exception naming
+    "RUF001",  # Ambiguous unicode character - emoji usage is intentional
+    "RUF006",  # Asyncio dangling task - legacy async patterns
+    "RUF012",  # Mutable class attributes - configuration classes
+    "E722",    # Bare except - legacy error handling
+    "E741",    # Ambiguous variable name - legacy code patterns
+    "SIM102",  # Collapsible if statements - readability preference
+    "SIM103",  # Needless bool - legacy boolean logic
+    "SIM105",  # Use contextlib.suppress - legacy error handling
+    "SIM117",  # Multiple with statements - readability preference
+    "B007",    # Unused loop control variable - legacy code patterns
+    "B018",    # Useless expression - debug/placeholder code
+    "B025",    # Duplicate try block exception - legacy error handling
+    "F811",    # Redefined while unused - legacy scaffold files
+    "F401",    # Unused import - legacy imports for compatibility
+    "F821",    # Undefined name - legacy code with dynamic imports
+    "ERA001",  # Commented out code - debugging/documentation
+    "UP006",   # Non-PEP585 annotation - Python version compatibility
+    "UP007",   # Non-PEP604 union annotation - Python version compatibility
+    "UP035",   # Deprecated import - legacy compatibility
+    "A002",    # Builtin argument shadowing - legacy naming patterns
+    "I001",    # Unsorted imports - legacy import organization
+    "TCH001",  # Move application import into TYPE_CHECKING block
+    "TCH002",  # Move third-party import into TYPE_CHECKING block
+    "TCH003",  # Move standard library import into TYPE_CHECKING block
+]
+
+# Allow fix for all enabled rules (when `--fix`) is provided.
+fixable = ["ALL"]
+unfixable = []
+
+# Allow unused variables when underscore-prefixed.
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+[tool.ruff.lint.per-file-ignores]
+# Tests can use magic values, assertions, and print statements
+"tests/**/*.py" = [
+    "S101",    # Use of assert
+    "T201",    # Print statements
+    "ARG",     # Unused function args
+    "FBT",     # Boolean trap
+]
+# Scripts can use print statements
+"scripts/**/*.py" = [
+    "T201",    # Print statements
+]
+# Alembic migrations can have various issues we want to ignore
+"alembic/**/*.py" = [
+    "F401",    # Unused imports
+    "E402",    # Module level import not at top of file
+]
+# Main application files
+"app/main.py" = [
+    "F401",    # Unused imports (might be used by plugins)
+]
+
+[tool.ruff.lint.isort]
+# Configure import sorting
+known-first-party = ["app", "tests"]
+known-third-party = ["fastapi", "pydantic", "sqlalchemy", "alembic"]
+section-order = ["future", "standard-library", "third-party", "first-party", "local-folder"]
+
+[tool.ruff.lint.mccabe]
+# Set maximum cyclomatic complexity
+max-complexity = 10
+
+[tool.ruff.format]
+# Use double quotes for strings
+quote-style = "double"
+# Use spaces for indentation
+indent-style = "space"
+# Respect magic trailing commas
+skip-magic-trailing-comma = false
+# Automatically detect the appropriate line ending
+line-ending = "auto"

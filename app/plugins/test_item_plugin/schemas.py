@@ -1,49 +1,51 @@
-"""
-TestItem Pydantic schemas
-"""
-from typing import Optional, Dict, Any, List
-from pydantic import BaseModel, Field
+"""TestItem Pydantic schemas."""
+
 from datetime import datetime
-from decimal import Decimal
+
+from pydantic import BaseModel, Field
 
 
 class TestItemBase(BaseModel):
-    """Base schema for TestItem"""
+    """Base schema for TestItem."""
+
     name: str
     description: str
-    priority: Optional[int] = Field(default=1, description="Item priority")
-    item_status: Optional[str] = Field(default="active", description="Item status")
-    rating: Optional[int] = Field(default=0, description="Item rating")
+    priority: int | None = Field(default=1, description="Item priority")
+    item_status: str | None = Field(default="active", description="Item status")
+    rating: int | None = Field(default=0, description="Item rating")
 
 
 class TestItemCreate(TestItemBase):
-    """Schema for creating TestItem"""
-    pass
+    """Schema for creating TestItem."""
+
 
 
 class TestItemUpdate(BaseModel):
-    """Schema for updating TestItem"""
-    id: Optional[int] = None
-    name: Optional[str] = None
-    description: Optional[str] = None
-    priority: Optional[int] = None
-    item_status: Optional[str] = None
-    rating: Optional[int] = None
+    """Schema for updating TestItem."""
+
+    id: int | None = None
+    name: str | None = None
+    description: str | None = None
+    priority: int | None = None
+    item_status: str | None = None
+    rating: int | None = None
 
 
 class TestItemResponse(TestItemBase):
-    """Schema for TestItem response"""
+    """Schema for TestItem response."""
+
     id: int
     created_at: datetime
     updated_at: datetime
-    
+
     class Config:
         from_attributes = True
 
 
 class TestItemList(BaseModel):
-    """Schema for TestItem list response"""
-    items: List[TestItemResponse]
+    """Schema for TestItem list response."""
+
+    items: list[TestItemResponse]
     total: int
     page: int
     size: int
@@ -51,9 +53,10 @@ class TestItemList(BaseModel):
 
 
 class TestItemSearch(BaseModel):
-    """Schema for TestItem search parameters"""
-    query: Optional[str] = None
+    """Schema for TestItem search parameters."""
+
+    query: str | None = None
     page: int = 1
     size: int = 10
-    sort_by: Optional[str] = None
-    sort_order: Optional[str] = "asc"
+    sort_by: str | None = None
+    sort_order: str | None = "asc"

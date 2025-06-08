@@ -1,5 +1,4 @@
-"""
-Architecture Analysis and Optimization Tools for FastAPI Scaffold Generator v4.0
+"""Architecture Analysis and Optimization Tools for FastAPI Scaffold Generator v4.0.
 
 This module provides comprehensive analysis tools for FastAPI projects:
 - Project architecture analysis and optimization suggestions
@@ -11,6 +10,4 @@ This module provides comprehensive analysis tools for FastAPI projects:
 
 from .architecture_analyzer import ArchitectureAnalyzer
 
-__all__ = [
-    'ArchitectureAnalyzer'
-] 
+__all__ = ["ArchitectureAnalyzer"]

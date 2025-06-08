@@ -1,5 +1,4 @@
-"""
-Advanced Testing Suite Generator for FastAPI Scaffold Generator v4.0
+"""Advanced Testing Suite Generator for FastAPI Scaffold Generator v4.0.
 
 This module provides comprehensive testing capabilities:
 - Unit test generation for models, services, and routes
@@ -10,9 +9,6 @@ This module provides comprehensive testing capabilities:
 - Mock data generation with realistic test data
 """
 
-from .test_generator import TestGenerator, TestConfig
+from .test_generator import TestConfig, TestGenerator
 
-__all__ = [
-    'TestGenerator',
-    'TestConfig'
-] 
+__all__ = ["TestConfig", "TestGenerator"]

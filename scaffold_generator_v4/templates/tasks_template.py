@@ -1,19 +1,17 @@
-"""
-Background tasks template generator
-"""
-from typing import List, Dict, Any
+"""Background tasks template generator."""
+
 import re
 
 
 class TasksTemplate:
-    """Generates background tasks templates"""
-    
+    """Generates background tasks templates."""
+
     def generate(self, model_name: str) -> str:
-        """Generate background tasks file content"""
-        snake_name = re.sub(r'(?<!^)(?=[A-Z])', '_', model_name).lower()
+        """Generate background tasks file content."""
+        snake_name = re.sub(r"(?<!^)(?=[A-Z])", "_", model_name).lower()
         pascal_name = model_name
-        
-        template = f'''"""
+
+        return f'''"""
 {pascal_name} background tasks
 """
 import asyncio
@@ -70,7 +68,7 @@ async def process_{snake_name}_batch(batch_data: List[Dict[str, Any]]):
             # Add your batch processing logic here
             result = await service.create(**item_data)
             results.append(result.id)
-        
+
         print(f"Processed batch of {{len(results)}} {snake_name} items")
         return {{"status": "success", "processed_ids": results}}
     except Exception as e:
@@ -97,5 +95,4 @@ TASKS = {{
     "generate_{snake_name}_statistics": generate_{snake_name}_statistics
 }}
 '''
-        
-        return template 
+

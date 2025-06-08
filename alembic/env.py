@@ -1,12 +1,13 @@
-from logging.config import fileConfig
-from sqlalchemy import engine_from_config, pool, create_engine
-from alembic import context
-import sys
 import os
+import sys
+from logging.config import fileConfig
+
+from alembic import context
 from dotenv import load_dotenv
+from sqlalchemy import create_engine, engine_from_config, pool
 
 # Load environment variables from .env for Alembic CLI
-load_dotenv(os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env'))
+load_dotenv(os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env"))
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -28,6 +29,7 @@ if config.config_file_name is not None:
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata
 from app.db.base import Base
+
 target_metadata = Base.metadata
 
 # other values from the config, defined by the needs of env.py,
@@ -35,56 +37,56 @@ target_metadata = Base.metadata
 # my_important_option = config.get_main_option("my_important_option")
 # ... etc.
 
+
 # SCAFFOLD_SAFE_AUTOGENERATE_CONFIG - Prevents touching existing infrastructure
-def include_name(name, type_, parent_names):
-    """
-    Filter function to prevent autogenerate from touching existing infrastructure.
+def include_name(name, type_, parent_names) -> bool:
+    """Filter function to prevent autogenerate from touching existing infrastructure.
     Only includes tables that are part of our application models.
     """
     if type_ == "table":
         # List of infrastructure tables to never touch
         infrastructure_tables = {
-            'alembic_version',
-            'procrastinate_jobs',
-            'procrastinate_job',  # Alternative naming
-            'procrastinate_events',
-            'procrastinate_periodic_defers',
-            'procrastinate_periodic_defer',  # Alternative naming
-            'procrastinate_locks',
-            'procrastinate_workers'
+            "alembic_version",
+            "procrastinate_jobs",
+            "procrastinate_job",  # Alternative naming
+            "procrastinate_events",
+            "procrastinate_periodic_defers",
+            "procrastinate_periodic_defer",  # Alternative naming
+            "procrastinate_locks",
+            "procrastinate_workers",
         }
-        
+
         # Skip infrastructure tables
         if name in infrastructure_tables:
             return False
-        
+
         # Only include tables that match our application naming pattern
         # This prevents touching any existing tables not managed by our scaffold
         return True
-    
+
     return True
 
-def include_object(object, name, type_, reflected, compare_to):
-    """
-    Advanced filtering to prevent autogenerate from modifying existing infrastructure.
-    """
+
+def include_object(object, name, type_, reflected, compare_to) -> bool:
+    """Advanced filtering to prevent autogenerate from modifying existing infrastructure."""
     if type_ == "table":
         # Infrastructure tables to never touch
         infrastructure_tables = {
-            'alembic_version',
-            'procrastinate_jobs',
-            'procrastinate_job',  # Alternative naming
-            'procrastinate_events', 
-            'procrastinate_periodic_defers',
-            'procrastinate_periodic_defer',  # Alternative naming
-            'procrastinate_locks',
-            'procrastinate_workers'
+            "alembic_version",
+            "procrastinate_jobs",
+            "procrastinate_job",  # Alternative naming
+            "procrastinate_events",
+            "procrastinate_periodic_defers",
+            "procrastinate_periodic_defer",  # Alternative naming
+            "procrastinate_locks",
+            "procrastinate_workers",
         }
-        
+
         if name in infrastructure_tables:
             return False
-    
+
     return True
+
 
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode.

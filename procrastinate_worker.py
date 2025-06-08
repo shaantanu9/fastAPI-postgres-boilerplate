@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-Procrastinate Worker CLI
+"""Procrastinate Worker CLI.
 
 This script provides a command-line interface for running Procrastinate workers
 independently of the main FastAPI application. This allows for distributed task
@@ -21,12 +20,11 @@ Features:
 - Schema management
 """
 
+import argparse
+import asyncio
+import logging
 import os
 import sys
-import asyncio
-import argparse
-import logging
-from typing import List, Optional
 
 # Add the project root to the Python path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -35,174 +33,171 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 if sys.platform == "win32":
     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
+import contextlib
+
 from app.core.config import get_settings
 from app.utils.procrastinate_manager import procrastinate_app
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
 
 
-async def run_worker(queues: Optional[List[str]] = None, concurrency: int = 10):
-    """Run Procrastinate worker with specified configuration"""
+async def run_worker(queues: list[str] | None = None, concurrency: int = 10) -> None:
+    """Run Procrastinate worker with specified configuration."""
     logger.info(f"Starting Procrastinate worker with concurrency: {concurrency}")
-    
+
     if queues:
         logger.info(f"Listening to queues: {', '.join(queues)}")
     else:
         logger.info("Listening to all queues")
-    
+
     async with procrastinate_app.open_async():
         try:
             await procrastinate_app.run_worker_async(
-                queues=queues,
-                concurrency=concurrency,
-                install_signal_handlers=True
+                queues=queues, concurrency=concurrency, install_signal_handlers=True,
             )
         except KeyboardInterrupt:
             logger.info("Worker stopped by user")
         except Exception as e:
-            logger.error(f"Worker error: {e}")
+            logger.exception(f"Worker error: {e}")
             raise
 
 
-def apply_schema():
-    """Apply Procrastinate database schema"""
+def apply_schema() -> None:
+    """Apply Procrastinate database schema."""
     logger.info("Applying Procrastinate database schema...")
-    
+
     try:
         # Use sync version to avoid event loop conflicts
         with procrastinate_app.open():
             procrastinate_app.schema_manager.apply_schema()
-        
+
         logger.info("Schema applied successfully")
     except Exception as e:
-        logger.error(f"Failed to apply schema: {e}")
+        logger.exception(f"Failed to apply schema: {e}")
         raise
 
 
-async def health_checks():
-    """Perform health checks on the Procrastinate system"""
+async def health_checks() -> bool | None:
+    """Perform health checks on the Procrastinate system."""
     logger.info("Performing Procrastinate health checks...")
-    
+
     try:
         async with procrastinate_app.open_async():
             # Try to connect to the database
             logger.info("✓ Database connection: OK")
-            
+
             # Check if schema exists
             # This would require custom implementation to check schema
             logger.info("✓ Schema check: OK (basic)")
-            
+
             logger.info("All health checks passed!")
             return True
-            
+
     except Exception as e:
-        logger.error(f"✗ Health check failed: {e}")
+        logger.exception(f"✗ Health check failed: {e}")
         return False
 
 
-async def interactive_shell():
-    """Start an interactive shell for job management"""
+async def interactive_shell() -> None:
+    """Start an interactive shell for job management."""
     logger.info("Starting Procrastinate interactive shell...")
     logger.info("Available commands: help, list_jobs, list_queues, exit")
-    
+
     async with procrastinate_app.open_async():
         while True:
             try:
                 command = input("procrastinate> ").strip().lower()
-                
-                if command == "exit" or command == "quit":
+
+                if command in {"exit", "quit"}:
                     break
-                elif command == "help":
-                    print("Available commands:")
-                    print("  help         - Show this help")
-                    print("  list_jobs    - List jobs (requires custom implementation)")
-                    print("  list_queues  - List available queues")
-                    print("  exit/quit    - Exit the shell")
+                if command == "help":
+                    pass
                 elif command == "list_queues":
                     queues = [
                         "user_processing",
-                        "data_processing", 
+                        "data_processing",
                         "notifications",
                         "file_processing",
                         "analytics",
                         "maintenance",
-                        "health_checks"
+                        "health_checks",
                     ]
-                    print("Available queues:")
-                    for queue in queues:
-                        print(f"  - {queue}")
+                    for _queue in queues:
+                        pass
                 elif command == "list_jobs":
-                    print("Job listing requires custom implementation using Procrastinate tables")
+                    pass
                 else:
-                    print(f"Unknown command: {command}. Type 'help' for available commands.")
-                    
+                    pass
+
             except KeyboardInterrupt:
                 break
             except EOFError:
                 break
-    
+
     logger.info("Interactive shell ended")
 
 
-def main():
-    """Main CLI entry point"""
+def main() -> None:
+    """Main CLI entry point."""
     parser = argparse.ArgumentParser(
-        description="Procrastinate Worker CLI for FastAPI PostgreSQL Boilerplate"
+        description="Procrastinate Worker CLI for FastAPI PostgreSQL Boilerplate",
     )
-    
+
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
-    
+
     # Worker command
     worker_parser = subparsers.add_parser("worker", help="Run Procrastinate worker")
     worker_parser.add_argument(
-        "--queues", "-q",
+        "--queues",
+        "-q",
         nargs="*",
         help="Specific queues to listen to (default: all queues)",
-        default=None
+        default=None,
     )
     worker_parser.add_argument(
-        "--concurrency", "-c",
+        "--concurrency",
+        "-c",
         type=int,
         default=10,
-        help="Number of concurrent jobs to process (default: 10)"
+        help="Number of concurrent jobs to process (default: 10)",
     )
-    
+
     # Schema command
     subparsers.add_parser("schema", help="Apply database schema")
-    
+
     # Health checks command
     subparsers.add_parser("healthchecks", help="Perform health checks")
-    
+
     # Interactive shell command
     subparsers.add_parser("shell", help="Start interactive shell")
-    
+
     # Parse arguments
     args = parser.parse_args()
-    
+
     if not args.command:
         parser.print_help()
         return
-    
+
     # Load settings
     settings = get_settings()
-    logger.info(f"Connecting to database: {settings.postgres_host}:{settings.postgres_port}")
-    
+    logger.info(
+        f"Connecting to database: {settings.postgres_host}:{settings.postgres_port}",
+    )
+
     # Execute command
     try:
         # Create a new event loop for each command to avoid conflicts
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-        
+
         if args.command == "worker":
-            loop.run_until_complete(run_worker(
-                queues=args.queues,
-                concurrency=args.concurrency
-            ))
+            loop.run_until_complete(
+                run_worker(queues=args.queues, concurrency=args.concurrency),
+            )
         elif args.command == "schema":
             apply_schema()
         elif args.command == "healthchecks":
@@ -210,19 +205,17 @@ def main():
             sys.exit(0 if success else 1)
         elif args.command == "shell":
             loop.run_until_complete(interactive_shell())
-            
+
     except KeyboardInterrupt:
         logger.info("Operation cancelled by user")
     except Exception as e:
-        logger.error(f"Command failed: {e}")
+        logger.exception(f"Command failed: {e}")
         sys.exit(1)
     finally:
         # Clean up the event loop
-        try:
+        with contextlib.suppress(Exception):
             loop.close()
-        except:
-            pass
 
 
 if __name__ == "__main__":
-    main() 
+    main()

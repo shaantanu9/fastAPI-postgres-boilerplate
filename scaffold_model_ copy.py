@@ -1,56 +1,62 @@
-import os
 import json
+import os
 import sys
-import shutil
 
 BASE_PATH = "app"
 TRACK_FILE = "scaffolded_models.json"
 API_FILE = os.path.join(BASE_PATH, "api/v1/api.py")
 
+
 # --- Utility functions ---
 def snake_case(name):
-    return ''.join(['_' + c.lower() if c.isupper() else c for c in name]).lstrip('_')
+    return "".join(["_" + c.lower() if c.isupper() else c for c in name]).lstrip("_")
+
 
 def pascal_case(name):
-    return ''.join(word.capitalize() for word in name.split('_'))
+    return "".join(word.capitalize() for word in name.split("_"))
 
-def ensure_init(path):
+
+def ensure_init(path) -> None:
     dirs = path.split(os.sep)
     for i in range(1, len(dirs)):
         d = os.sep.join(dirs[:i])
         if d and not os.path.exists(os.path.join(d, "__init__.py")):
-            with open(os.path.join(d, "__init__.py"), "a") as f:
+            with open(os.path.join(d, "__init__.py"), "a"):
                 pass
+
 
 def prompt_fields():
     fields = []
-    print("Enter fields for your model (format: name:type), e.g., title:str. Type 'done' when finished.")
     while True:
         field = input("Field: ")
         if field.lower() == "done":
             break
-        if ':' in field:
-            name, typ = field.split(':', 1)
+        if ":" in field:
+            name, typ = field.split(":", 1)
             fields.append((name.strip(), typ.strip()))
     return fields
 
+
 def load_track():
     if os.path.exists(TRACK_FILE):
-        with open(TRACK_FILE, "r") as f:
+        with open(TRACK_FILE) as f:
             return json.load(f)
     return {}
 
-def save_track(data):
+
+def save_track(data) -> None:
     with open(TRACK_FILE, "w") as f:
         json.dump(data, f, indent=2)
 
+
 # --- File generation and removal ---
-def write_file(path, content):
+def write_file(path, content) -> None:
     ensure_init(os.path.dirname(path))
     with open(path, "w") as f:
         f.write(content)
 
-def remove_file(path):
+
+def remove_file(path) -> None:
     if os.path.exists(path):
         os.remove(path)
         # Remove empty parent dirs up to BASE_PATH
@@ -62,26 +68,30 @@ def remove_file(path):
             else:
                 break
 
-def update_api_py(model, action):
+
+def update_api_py(model, action) -> None:
     """Add or remove import/include_router for the model in api.py."""
     snake = snake_case(model)
     router_line = f"from app.api.v1.endpoints import {snake}"
-    include_line = f"api_router.include_router({snake}.router, prefix=\"/{snake}s\", tags=[\"{snake}s\"])"
-    with open(API_FILE, "r") as f:
+    include_line = f'api_router.include_router({snake}.router, prefix="/{snake}s", tags=["{snake}s"])'
+    with open(API_FILE) as f:
         lines = f.readlines()
     if action == "add":
         if router_line + "\n" not in lines:
             # Insert after last import
             last_import = max(i for i, l in enumerate(lines) if l.startswith("from"))
-            lines.insert(last_import+1, router_line+"\n")
-        if include_line+"\n" not in lines:
+            lines.insert(last_import + 1, router_line + "\n")
+        if include_line + "\n" not in lines:
             # Insert after last include_router
             last_include = max(i for i, l in enumerate(lines) if "include_router" in l)
-            lines.insert(last_include+1, include_line+"\n")
+            lines.insert(last_include + 1, include_line + "\n")
     elif action == "remove":
-        lines = [l for l in lines if l.strip() != router_line and l.strip() != include_line]
+        lines = [
+            l for l in lines if l.strip() != router_line and l.strip() != include_line
+        ]
     with open(API_FILE, "w") as f:
         f.writelines(lines)
+
 
 # --- Main scaffold logic ---
 def make_model_files(model, fields):
@@ -158,10 +168,10 @@ router = get_crud_router(
     files[endpoint_path] = endpoint_code
     return files
 
-def add_model(model, fields):
+
+def add_model(model, fields) -> None:
     track = load_track()
     if model in track:
-        print(f"Model {model} already scaffolded. Remove first if you want to re-create.")
         return
     files = make_model_files(model, fields)
     created = []
@@ -171,10 +181,22 @@ def add_model(model, fields):
             created.append(path)
         # Update __init__.py for imports
         for subdir, imp in [
-            (f"{BASE_PATH}/db/models/__init__.py", f"from .{snake_case(model)} import {model}\n"),
-            (f"{BASE_PATH}/db/schemas/__init__.py", f"from .{snake_case(model)} import {model}Create, {model}Read\n"),
-            (f"{BASE_PATH}/services/__init__.py", f"from .{snake_case(model)}_service import {model}Service\n"),
-            (f"{BASE_PATH}/api/v1/endpoints/__init__.py", f"from .{snake_case(model)} import router as {snake_case(model)}_router\n"),
+            (
+                f"{BASE_PATH}/db/models/__init__.py",
+                f"from .{snake_case(model)} import {model}\n",
+            ),
+            (
+                f"{BASE_PATH}/db/schemas/__init__.py",
+                f"from .{snake_case(model)} import {model}Create, {model}Read\n",
+            ),
+            (
+                f"{BASE_PATH}/services/__init__.py",
+                f"from .{snake_case(model)}_service import {model}Service\n",
+            ),
+            (
+                f"{BASE_PATH}/api/v1/endpoints/__init__.py",
+                f"from .{snake_case(model)} import router as {snake_case(model)}_router\n",
+            ),
         ]:
             with open(subdir, "a") as f:
                 f.write(imp)
@@ -183,9 +205,7 @@ def add_model(model, fields):
         # Track
         track[model] = list(files.keys())
         save_track(track)
-        print(f"Model {model} scaffolded successfully.")
-    except Exception as e:
-        print(f"Error occurred: {e}. Rolling back...")
+    except Exception:
         for path in created:
             remove_file(path)
         update_api_py(model, "remove")
@@ -194,22 +214,34 @@ def add_model(model, fields):
             save_track(track)
         raise
 
-def remove_model(model):
+
+def remove_model(model) -> None:
     track = load_track()
     if model not in track:
-        print(f"Model {model} not found in scaffolded models.")
         return
     for path in track[model]:
         remove_file(path)
     # Remove imports from __init__.py
     for subdir, imp in [
-        (f"{BASE_PATH}/db/models/__init__.py", f"from .{snake_case(model)} import {model}\n"),
-        (f"{BASE_PATH}/db/schemas/__init__.py", f"from .{snake_case(model)} import {model}Create, {model}Read\n"),
-        (f"{BASE_PATH}/services/__init__.py", f"from .{snake_case(model)}_service import {model}Service\n"),
-        (f"{BASE_PATH}/api/v1/endpoints/__init__.py", f"from .{snake_case(model)} import router as {snake_case(model)}_router\n"),
+        (
+            f"{BASE_PATH}/db/models/__init__.py",
+            f"from .{snake_case(model)} import {model}\n",
+        ),
+        (
+            f"{BASE_PATH}/db/schemas/__init__.py",
+            f"from .{snake_case(model)} import {model}Create, {model}Read\n",
+        ),
+        (
+            f"{BASE_PATH}/services/__init__.py",
+            f"from .{snake_case(model)}_service import {model}Service\n",
+        ),
+        (
+            f"{BASE_PATH}/api/v1/endpoints/__init__.py",
+            f"from .{snake_case(model)} import router as {snake_case(model)}_router\n",
+        ),
     ]:
         if os.path.exists(subdir):
-            with open(subdir, "r") as f:
+            with open(subdir) as f:
                 lines = f.readlines()
             with open(subdir, "w") as f:
                 for l in lines:
@@ -218,19 +250,23 @@ def remove_model(model):
     update_api_py(model, "remove")
     del track[model]
     save_track(track)
-    print(f"Model {model} and all associated files/imports removed.")
 
-def list_models():
+
+def list_models() -> None:
     track = load_track()
     if not track:
-        print("No models scaffolded yet.")
         return
-    print("Scaffolded models:")
-    for model, files in track.items():
-        print(f"- {model}: {files}")
+    for _model, _files in track.items():
+        pass
+
 
 # --- Extra features ---
-SUPPORTED_FIELD_TYPES = {"str": "String", "int": "Integer", "float": "Float", "bool": "Boolean"}
+SUPPORTED_FIELD_TYPES = {
+    "str": "String",
+    "int": "Integer",
+    "float": "Float",
+    "bool": "Boolean",
+}
 
 HELP_TEXT = """
 FastAPI Scaffold Tool - Enhanced
@@ -257,34 +293,35 @@ Features:
 - Help/usage command
 """
 
+
 def validate_fields(fields):
     valid = True
-    for name, typ in fields:
+    for _name, typ in fields:
         if typ not in SUPPORTED_FIELD_TYPES and not typ.startswith("FK:"):
-            print(f"[Warning] Field '{name}' has unsupported type '{typ}'. Defaulting to String.")
             valid = False
     return valid
 
+
 def prompt_relationships():
     rels = []
-    print("Enter relationships (format: field:FK:TargetModel), e.g., author_id:FK:User. Type 'done' when finished.")
     while True:
         rel = input("Relationship: ")
         if rel.lower() == "done":
             break
-        if ':' in rel and rel.count(':') == 2:
-            name, fk, target = rel.split(':')
+        if ":" in rel and rel.count(":") == 2:
+            name, fk, target = rel.split(":")
             if fk == "FK":
                 rels.append((name.strip(), target.strip()))
     return rels
 
+
 def prompt_crud():
-    print("Enable/disable CRUD endpoints (y/n):")
     crud = {}
     for op in ["create", "read", "update", "delete", "list"]:
         val = input(f"  {op}? [y/n]: ").strip().lower()
-        crud[op] = (val == "y")
+        crud[op] = val == "y"
     return crud
+
 
 def make_test_file(model, fields):
     snake = snake_case(model)
@@ -299,7 +336,10 @@ def test_{snake}_crud(client):
 '''
     return test_path, test_code
 
-def make_model_files_enhanced(model, fields, relationships, crud, examples, dry_run=False, verbose=True):
+
+def make_model_files_enhanced(
+    model, fields, relationships, crud, examples, dry_run=False, verbose=True,
+):
     snake = snake_case(model)
     files = {}
     # Model
@@ -323,7 +363,9 @@ class {model}(Base):
             sqlatype = SUPPORTED_FIELD_TYPES.get(typ, "String")
             model_code += f"    {name} = Column({sqlatype}, nullable=False)\n"
     for name, target in relationships:
-        model_code += f"    {name} = Column(Integer, ForeignKey('{snake_case(target)}s.id'))\n"
+        model_code += (
+            f"    {name} = Column(Integer, ForeignKey('{snake_case(target)}s.id'))\n"
+        )
     files[model_path] = model_code
     # Schema
     schema_path = f"{BASE_PATH}/db/schemas/{snake}.py"
@@ -335,9 +377,19 @@ from pydantic import BaseModel, Field
 class {model}Create(BaseModel):
 '''
     for name, typ in fields:
-        pytyp = "str" if typ == "str" else "int" if typ == "int" else "float" if typ == "float" else "bool" if typ == "bool" else "str"
+        pytyp = (
+            "str"
+            if typ == "str"
+            else "int"
+            if typ == "int"
+            else "float"
+            if typ == "float"
+            else "bool"
+            if typ == "bool"
+            else "str"
+        )
         example = examples.get(name, "example")
-        schema_code += f"    {name}: {pytyp} = Field(..., example={repr(example)})\n"
+        schema_code += f"    {name}: {pytyp} = Field(..., example={example!r})\n"
     schema_code += f"""
 
 class {model}Read({model}Create):
@@ -387,43 +439,63 @@ router = get_crud_router(
         for path, code in files.items():
             write_file(path, code)
         if verbose:
-            print(f"Created files: {list(files.keys())}")
+            pass
     return files
 
-def add_model_enhanced(model, fields, relationships, crud, examples, dry_run=False, verbose=True):
+
+def add_model_enhanced(
+    model, fields, relationships, crud, examples, dry_run=False, verbose=True,
+) -> None:
     track = load_track()
     if model in track:
-        print(f"Model {model} already scaffolded. Remove first if you want to re-create.")
         return
-    files = make_model_files_enhanced(model, fields, relationships, crud, examples, dry_run, verbose)
+    files = make_model_files_enhanced(
+        model, fields, relationships, crud, examples, dry_run, verbose,
+    )
     if not dry_run:
         # Update __init__.py for imports
         for subdir, imp in [
-            (f"{BASE_PATH}/db/models/__init__.py", f"from .{snake_case(model)} import {model}\n"),
-            (f"{BASE_PATH}/db/schemas/__init__.py", f"from .{snake_case(model)} import {model}Create, {model}Read\n"),
-            (f"{BASE_PATH}/services/__init__.py", f"from .{snake_case(model)}_service import {model}Service\n"),
-            (f"{BASE_PATH}/api/v1/endpoints/__init__.py", f"from .{snake_case(model)} import router as {snake_case(model)}_router\n"),
+            (
+                f"{BASE_PATH}/db/models/__init__.py",
+                f"from .{snake_case(model)} import {model}\n",
+            ),
+            (
+                f"{BASE_PATH}/db/schemas/__init__.py",
+                f"from .{snake_case(model)} import {model}Create, {model}Read\n",
+            ),
+            (
+                f"{BASE_PATH}/services/__init__.py",
+                f"from .{snake_case(model)}_service import {model}Service\n",
+            ),
+            (
+                f"{BASE_PATH}/api/v1/endpoints/__init__.py",
+                f"from .{snake_case(model)} import router as {snake_case(model)}_router\n",
+            ),
         ]:
             with open(subdir, "a") as f:
                 f.write(imp)
         update_api_py(model, "add")
         track[model] = list(files.keys())
         save_track(track)
-        print(f"Model {model} scaffolded successfully.")
     else:
-        print(f"[Dry Run] Would create: {list(files.keys())}")
+        pass
+
 
 # --- CLI ---
 if __name__ == "__main__":
     import argparse
-    parser = argparse.ArgumentParser(description="FastAPI Scaffold Tool", add_help=False)
-    parser.add_argument("cmd", nargs="?", default="help", choices=["add", "remove", "list", "help"])
+
+    parser = argparse.ArgumentParser(
+        description="FastAPI Scaffold Tool", add_help=False,
+    )
+    parser.add_argument(
+        "cmd", nargs="?", default="help", choices=["add", "remove", "list", "help"],
+    )
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--verbose", action="store_true")
     parser.add_argument("--quiet", action="store_true")
     args = parser.parse_args()
     if args.cmd == "help":
-        print(HELP_TEXT)
         sys.exit(0)
     if args.cmd == "list":
         list_models()
@@ -435,16 +507,24 @@ if __name__ == "__main__":
         relationships = prompt_relationships()
         crud = prompt_crud()
         examples = {name: input(f"Example for {name}: ") for name, _ in fields}
-        add_model_enhanced(model, fields, relationships, crud, examples, dry_run=args.dry_run, verbose=args.verbose and not args.quiet)
+        add_model_enhanced(
+            model,
+            fields,
+            relationships,
+            crud,
+            examples,
+            dry_run=args.dry_run,
+            verbose=args.verbose and not args.quiet,
+        )
     elif args.cmd == "remove":
         model = input("Enter model name (CamelCase, e.g., Book): ").strip()
         remove_model(model)
 
-def make_model(model_name, fields):
+
+def make_model(model_name, fields) -> None:
     fname = f"{BASE_PATH}/db/models/{snake_case(model_name)}.py"
     ensure_init(os.path.dirname(fname))
     if os.path.exists(fname):
-        print(f"File {fname} already exists! Skipping.")
         return
     with open(fname, "w") as f:
         f.write(f'''"""
@@ -459,20 +539,21 @@ class {model_name}(Base):
     id = Column(Integer, primary_key=True, index=True)
 ''')
         for name, typ in fields:
-            sqlatype = "String" if typ == "str" else "Integer" if typ == "int" else "String"
+            sqlatype = (
+                "String" if typ == "str" else "Integer" if typ == "int" else "String"
+            )
             f.write(f"    {name} = Column({sqlatype}, nullable=False)\n")
     # Add to __init__.py for Alembic
     init_file = f"{BASE_PATH}/db/models/__init__.py"
     ensure_init(os.path.dirname(init_file))
     with open(init_file, "a") as f:
         f.write(f"from .{snake_case(model_name)} import {model_name}\n")
-    print(f"Created model: {fname}")
 
-def make_schema(model_name, fields):
+
+def make_schema(model_name, fields) -> None:
     fname = f"{BASE_PATH}/db/schemas/{snake_case(model_name)}.py"
     ensure_init(os.path.dirname(fname))
     if os.path.exists(fname):
-        print(f"File {fname} already exists! Skipping.")
         return
     with open(fname, "w") as f:
         f.write(f'''"""
@@ -498,14 +579,15 @@ class {model_name}Read({model_name}Create):
     init_file = f"{BASE_PATH}/db/schemas/__init__.py"
     ensure_init(os.path.dirname(init_file))
     with open(init_file, "a") as f:
-        f.write(f"from .{snake_case(model_name)} import {model_name}Create, {model_name}Read\n")
-    print(f"Created schemas: {fname}")
+        f.write(
+            f"from .{snake_case(model_name)} import {model_name}Create, {model_name}Read\n",
+        )
 
-def make_service(model_name):
+
+def make_service(model_name) -> None:
     fname = f"{BASE_PATH}/services/{snake_case(model_name)}_service.py"
     ensure_init(os.path.dirname(fname))
     if os.path.exists(fname):
-        print(f"File {fname} already exists! Skipping.")
         return
     with open(fname, "w") as f:
         f.write(f'''"""
@@ -524,13 +606,12 @@ class {model_name}Service(BaseService[{model_name}]):
     ensure_init(os.path.dirname(init_file))
     with open(init_file, "a") as f:
         f.write(f"from .{snake_case(model_name)}_service import {model_name}Service\n")
-    print(f"Created service: {fname}")
 
-def make_endpoint(model_name):
+
+def make_endpoint(model_name) -> None:
     fname = f"{BASE_PATH}/api/v1/endpoints/{snake_case(model_name)}.py"
     ensure_init(os.path.dirname(fname))
     if os.path.exists(fname):
-        print(f"File {fname} already exists! Skipping.")
         return
     with open(fname, "w") as f:
         f.write(f'''"""
@@ -560,24 +641,19 @@ router = get_crud_router(
     init_file = f"{BASE_PATH}/api/v1/endpoints/__init__.py"
     ensure_init(os.path.dirname(init_file))
     with open(init_file, "a") as f:
-        f.write(f"from .{snake_case(model_name)} import router as {snake_case(model_name)}_router\n")
-    print(f"Created endpoint: {fname}")
+        f.write(
+            f"from .{snake_case(model_name)} import router as {snake_case(model_name)}_router\n",
+        )
 
-def main():
+
+def main() -> None:
     model_name = input("Enter model name (CamelCase, e.g., Book): ").strip()
     fields = prompt_fields()
     make_model(model_name, fields)
     make_schema(model_name, fields)
     make_service(model_name)
     make_endpoint(model_name)
-    print("\nNext steps:")
-    print(f"- Register the new router in app/api/v1/api.py (if not already auto-imported):")
-    print(f"    from app.api.v1.endpoints import {snake_case(model_name)}_router")
-    print(f"    api_router.include_router({snake_case(model_name)}_router)")
-    print("- Run Alembic migration:")
-    print("    alembic revision --autogenerate -m \"Add new model\"")
-    print("    alembic upgrade head")
-    print("- Add tests in app/tests/ as needed.")
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

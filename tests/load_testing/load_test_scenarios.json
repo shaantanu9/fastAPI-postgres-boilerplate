@@ -1,0 +1,35 @@
+{
+  "scenarios": {
+    "development": {
+      "host": "http://localhost:8000",
+      "users": 10,
+      "spawn_rate": 2,
+      "run_time": "2m"
+    },
+    "staging": {
+      "host": "https://staging.example.com",
+      "users": 50,
+      "spawn_rate": 5,
+      "run_time": "5m"
+    },
+    "production_baseline": {
+      "host": "https://api.example.com",
+      "users": 100,
+      "spawn_rate": 10,
+      "run_time": "10m"
+    },
+    "stress_test": {
+      "host": "http://localhost:8000",
+      "users": 500,
+      "spawn_rate": 25,
+      "run_time": "5m"
+    }
+  },
+  "thresholds": {
+    "avg_response_time_ms": 500,
+    "p95_response_time_ms": 1000,
+    "p99_response_time_ms": 2000,
+    "max_failure_rate_percent": 1.0,
+    "min_requests_per_second": 10
+  }
+}

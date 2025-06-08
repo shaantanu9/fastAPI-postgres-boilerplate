@@ -1,5 +1,4 @@
-"""
-FastAPI Scaffold Generator v4.0 - Modular Architecture
+"""FastAPI Scaffold Generator v4.0 - Modular Architecture.
 
 A comprehensive, modular scaffold generator for FastAPI plugins with:
 - Modular file structure (models.py, schemas.py, services.py, routes.py, tasks.py)
@@ -15,21 +14,30 @@ Author: FastAPI Scaffold Generator Team
 __version__ = "4.0.0"
 __author__ = "FastAPI Scaffold Generator Team"
 
-from .core import FieldValidator, MigrationManager, InfrastructureChecker, PluginValidator
+from .core import (
+    FieldValidator,
+    InfrastructureChecker,
+    MigrationManager,
+    PluginValidator,
+)
 from .templates import (
-    ModelsTemplate, SchemasTemplate, ServicesTemplate, 
-    RoutesTemplate, TasksTemplate, InitTemplate
+    InitTemplate,
+    ModelsTemplate,
+    RoutesTemplate,
+    SchemasTemplate,
+    ServicesTemplate,
+    TasksTemplate,
 )
 
 __all__ = [
-    'FieldValidator',
-    'MigrationManager', 
-    'InfrastructureChecker',
-    'PluginValidator',
-    'ModelsTemplate',
-    'SchemasTemplate',
-    'ServicesTemplate',
-    'RoutesTemplate', 
-    'TasksTemplate',
-    'InitTemplate'
-] 
+    "FieldValidator",
+    "InfrastructureChecker",
+    "InitTemplate",
+    "MigrationManager",
+    "ModelsTemplate",
+    "PluginValidator",
+    "RoutesTemplate",
+    "SchemasTemplate",
+    "ServicesTemplate",
+    "TasksTemplate",
+]

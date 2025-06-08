@@ -1,6 +1,4 @@
-"""
-Security models package.
-"""
+"""Security models package."""
 
 from .api_key import APIKey
 

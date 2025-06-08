@@ -1,79 +1,65 @@
 import asyncio
-from app.main import app
-from app.core.plugin_system import PluginManager
 
-async def test_plugin_system():
-    print('🚀 Testing Plugin System Startup')
-    print('=' * 50)
-    
+from app.core.plugin_system import PluginManager
+from app.main import app
+
+
+async def test_plugin_system() -> None:
+
     # Create plugin manager
-    plugin_manager = PluginManager(app, '1.0.0')
-    
+    plugin_manager = PluginManager(app, "1.0.0")
+
     # Step 1: Discover and load
-    print('🔍 Step 1: Discovering plugins...')
-    await plugin_manager.discover_and_load_plugins(['app/plugins'])
+    await plugin_manager.discover_and_load_plugins(["app/plugins"])
     plugins = plugin_manager.registry.get_all_plugins()
-    print(f'✅ Discovery complete: {len(plugins)} plugins loaded')
-    
-    for name, plugin in plugins.items():
-        print(f'   - {name}: {plugin.metadata.status}')
-    
+
+    for _name, _plugin in plugins.items():
+        pass
+
     # Step 2: Initialize
-    print('\n🔧 Step 2: Initializing plugins...')
     try:
         await plugin_manager.initialize_plugins()
-        print('✅ Initialization complete')
-    except Exception as e:
-        print(f'❌ Initialization failed: {e}')
+    except Exception:
         import traceback
+
         traceback.print_exc()
-    
+
     # Step 3: Check plugin status after initialization
-    print('\n📊 Step 3: Plugin status after initialization:')
     status = plugin_manager.get_plugin_status()
-    for name, info in status.items():
-        print(f'   {name}: {info["status"]}')
-    
+    for _name, _info in status.items():
+        pass
+
     # Step 4: Check routes after initialization
-    print('\n📍 Step 4: Checking registered routes:')
-    all_routes = [r for r in app.routes if hasattr(r, 'path')]
-    order_routes = [r for r in all_routes if '/orders' in r.path]
-    
-    print(f'   Total routes: {len(all_routes)}')
-    print(f'   Order routes: {len(order_routes)}')
-    
+    all_routes = [r for r in app.routes if hasattr(r, "path")]
+    order_routes = [r for r in all_routes if "/orders" in r.path]
+
+
     if order_routes:
         for route in order_routes:
-            print(f'     - {route.path} [{", ".join(route.methods)}]')
+            pass
     else:
-        print('   No order routes found!')
-        
+
         # Debug: Check what routes are there
-        print('\n   Sample of current routes:')
         for route in all_routes[:10]:
-            print(f'     - {route.path}')
-    
+            pass
+
     # Step 5: Test Order plugin specifically
-    print('\n🔌 Step 5: Testing Order plugin specifically:')
-    order_plugin = plugin_manager.registry.get_plugin('order_plugin')
+    order_plugin = plugin_manager.registry.get_plugin("order_plugin")
     if order_plugin:
-        print(f'   Order plugin found: {order_plugin.metadata.name}')
-        print(f'   Status: {order_plugin.metadata.status}')
-        
+
         try:
             routes = order_plugin.get_routes()
-            print(f'   Plugin routes: {len(routes)}')
-            
-            for i, route in enumerate(routes):
-                if hasattr(route, 'routes'):
-                    print(f'     Router {i+1}: {len(route.routes)} endpoints')
+
+            for _i, route in enumerate(routes):
+                if hasattr(route, "routes"):
                     for endpoint in route.routes[:3]:  # Show first 3
-                        if hasattr(endpoint, 'path'):
-                            print(f'       - {endpoint.path}')
-        except Exception as e:
-            print(f'   ❌ Error getting routes: {e}')
+                        if hasattr(endpoint, "path"):
+                            pass
+        except Exception:
+            pass
     else:
-        print('   ❌ Order plugin not found!')
+        pass
+
 
 if __name__ == "__main__":
-    asyncio.run(test_plugin_system()) 
+    asyncio.run(test_plugin_system())

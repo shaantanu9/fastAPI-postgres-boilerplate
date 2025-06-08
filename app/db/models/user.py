@@ -1,8 +1,10 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, ForeignKey
+import uuid
+
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
+
 from app.db.base import Base
-import uuid
 
 
 class User(Base):
@@ -49,11 +51,11 @@ class User(Base):
 
     # Relationships
     roles = relationship(
-        "Role", 
-        secondary="user_roles", 
+        "Role",
+        secondary="user_roles",
         back_populates="users",
         primaryjoin="User.id == UserRole.user_id",
-        secondaryjoin="Role.id == UserRole.role_id"
+        secondaryjoin="Role.id == UserRole.role_id",
     )
     sessions = relationship("UserSession", back_populates="user")
     # security_events relationship moved to app.db.models.security.SecurityEvent
@@ -73,13 +75,15 @@ class Role(Base):
 
     # Relationships
     users = relationship(
-        "User", 
-        secondary="user_roles", 
+        "User",
+        secondary="user_roles",
         back_populates="roles",
         primaryjoin="Role.id == UserRole.role_id",
-        secondaryjoin="User.id == UserRole.user_id"
+        secondaryjoin="User.id == UserRole.user_id",
     )
-    permissions = relationship("Permission", secondary="role_permissions", back_populates="roles")
+    permissions = relationship(
+        "Permission", secondary="role_permissions", back_populates="roles",
+    )
 
 
 class Permission(Base):
@@ -95,7 +99,9 @@ class Permission(Base):
     created_at = Column(DateTime, server_default=func.now())
 
     # Relationships
-    roles = relationship("Role", secondary="role_permissions", back_populates="permissions")
+    roles = relationship(
+        "Role", secondary="role_permissions", back_populates="permissions",
+    )
 
 
 # Association Tables

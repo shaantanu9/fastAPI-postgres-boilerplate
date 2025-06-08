@@ -1,12 +1,8 @@
-"""
-Gunicorn Configuration for FastAPI Development
+"""Gunicorn Configuration for FastAPI Development.
 
 This configuration provides development-friendly settings with automatic reloading,
 simple logging, and no permission issues.
 """
-import multiprocessing
-import os
-from pathlib import Path
 
 # =============================================================================
 # DEVELOPMENT CONFIGURATION
@@ -41,7 +37,7 @@ max_requests_jitter = 10
 # Simple console logging for development
 loglevel = "debug"
 accesslog = "-"  # Log to stdout
-errorlog = "-"   # Log to stderr
+errorlog = "-"  # Log to stderr
 
 # Simple log format
 access_log_format = '%(h)s "%(r)s" %(s)s %(b)s %(D)s'
@@ -76,24 +72,28 @@ uvicorn_options = {
     "use_colors": True,  # Enable colors for development
 }
 
+
 # =============================================================================
 # DEVELOPMENT HOOKS
 # =============================================================================
-def on_starting(server):
+def on_starting(server) -> None:
     """Called just before the master process is initialized."""
     server.log.info("🚀 Starting FastAPI development server with Gunicorn + Uvicorn")
 
-def when_ready(server):
+
+def when_ready(server) -> None:
     """Called just after the server is started."""
-    server.log.info(f"✅ FastAPI development server ready at http://127.0.0.1:8000")
+    server.log.info("✅ FastAPI development server ready at http://127.0.0.1:8000")
     server.log.info(f"📝 Running with {workers} worker (development mode)")
     server.log.info(f"🔄 Auto-reload enabled - watching: {reload_extra_files}")
-    server.log.info(f"📖 API docs available at: http://127.0.0.1:8000/docs")
+    server.log.info("📖 API docs available at: http://127.0.0.1:8000/docs")
 
-def on_exit(server):
+
+def on_exit(server) -> None:
     """Called just before exiting."""
     server.log.info("👋 Shutting down FastAPI development server")
 
-def post_worker_init(worker):
+
+def post_worker_init(worker) -> None:
     """Called just after a worker has initialized the application."""
-    worker.log.info(f"🔧 Worker {worker.pid} initialized (development mode)") 
+    worker.log.info(f"🔧 Worker {worker.pid} initialized (development mode)")

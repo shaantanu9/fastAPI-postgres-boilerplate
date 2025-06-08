@@ -1,30 +1,31 @@
 #!/usr/bin/env python3
-"""
-Free Observability Stack Setup for FastAPI
+"""Free Observability Stack Setup for FastAPI
 - Installs all free/open-source dependencies
 - Creates monitoring directories
 - Sets up configuration files
-- Provides deployment instructions
+- Provides deployment instructions.
 """
-import os
+
 import subprocess
 import sys
 from pathlib import Path
 
+
 def run_command(command: str, check: bool = True) -> bool:
-    """Run a command and return success status"""
+    """Run a command and return success status."""
     try:
-        result = subprocess.run(command, shell=True, check=check, capture_output=True, text=True)
+        result = subprocess.run(
+            command, shell=True, check=check, capture_output=True, text=True,
+        )
         if result.stdout:
-            print(result.stdout)
+            pass
         return True
-    except subprocess.CalledProcessError as e:
-        print(f"❌ Command failed: {command}")
-        print(f"Error: {e.stderr}")
+    except subprocess.CalledProcessError:
         return False
 
-def create_directories():
-    """Create necessary directories for observability"""
+
+def create_directories() -> None:
+    """Create necessary directories for observability."""
     directories = [
         "logs",
         "monitoring/prometheus",
@@ -32,26 +33,24 @@ def create_directories():
         "monitoring/grafana/provisioning/datasources",
         "monitoring/grafana/dashboards",
     ]
-    
+
     for directory in directories:
         Path(directory).mkdir(parents=True, exist_ok=True)
-        print(f"✅ Created directory: {directory}")
 
-def install_dependencies():
-    """Install observability dependencies"""
-    print("📦 Installing observability dependencies...")
-    
+
+def install_dependencies() -> bool:
+    """Install observability dependencies."""
     # Install core dependencies
     if run_command("pip install -r requirements-observability.txt"):
-        print("✅ Observability dependencies installed")
+        pass
     else:
-        print("❌ Failed to install dependencies")
         return False
-    
+
     return True
 
-def create_grafana_datasource():
-    """Create Grafana datasource configuration"""
+
+def create_grafana_datasource() -> None:
+    """Create Grafana datasource configuration."""
     datasource_config = """
 apiVersion: 1
 
@@ -65,13 +64,13 @@ datasources:
     isDefault: true
     editable: true
 """
-    
-    with open("monitoring/grafana/provisioning/datasources/prometheus.yml", "w") as f:
-        f.write(datasource_config)
-    print("✅ Created Grafana datasource configuration")
 
-def create_grafana_dashboard_config():
-    """Create Grafana dashboard configuration"""
+    with Path("monitoring/grafana/provisioning/datasources/prometheus.yml").open("w") as f:
+        f.write(datasource_config)
+
+
+def create_grafana_dashboard_config() -> None:
+    """Create Grafana dashboard configuration."""
     dashboard_config = """
 apiVersion: 1
 
@@ -86,13 +85,13 @@ providers:
     options:
       path: /var/lib/grafana/dashboards
 """
-    
-    with open("monitoring/grafana/provisioning/dashboards/dashboards.yml", "w") as f:
-        f.write(dashboard_config)
-    print("✅ Created Grafana dashboard configuration")
 
-def create_basic_dashboard():
-    """Create a basic FastAPI dashboard"""
+    with Path("monitoring/grafana/provisioning/dashboards/dashboards.yml").open("w") as f:
+        f.write(dashboard_config)
+
+
+def create_basic_dashboard() -> None:
+    """Create a basic FastAPI dashboard."""
     dashboard = {
         "dashboard": {
             "id": None,
@@ -107,10 +106,10 @@ def create_basic_dashboard():
                     "targets": [
                         {
                             "expr": "rate(http_requests_total[5m])",
-                            "legendFormat": "{{method}} {{path}}"
-                        }
+                            "legendFormat": "{{method}} {{path}}",
+                        },
                     ],
-                    "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+                    "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
                 },
                 {
                     "id": 2,
@@ -119,25 +118,25 @@ def create_basic_dashboard():
                     "targets": [
                         {
                             "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))",
-                            "legendFormat": "95th percentile"
-                        }
+                            "legendFormat": "95th percentile",
+                        },
                     ],
-                    "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
-                }
+                    "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+                },
             ],
             "time": {"from": "now-1h", "to": "now"},
-            "refresh": "5s"
-        }
+            "refresh": "5s",
+        },
     }
-    
-    import json
-    with open("monitoring/grafana/dashboards/fastapi-dashboard.json", "w") as f:
-        json.dump(dashboard, f, indent=2)
-    print("✅ Created basic FastAPI dashboard")
 
-def create_deployment_script():
-    """Create deployment scripts"""
-    
+    import json
+
+    with Path("monitoring/grafana/dashboards/fastapi-dashboard.json").open("w") as f:
+        json.dump(dashboard, f, indent=2)
+
+
+def create_deployment_script() -> None:
+    """Create deployment scripts."""
     # Start monitoring stack
     start_script = """#!/bin/bash
 echo "🚀 Starting Free Observability Stack..."
@@ -158,26 +157,25 @@ echo "  💾 MinIO Console: http://localhost:9001 (minioadmin/minioadmin123)"
 echo ""
 echo "🚀 Start your FastAPI app with: uvicorn app.main:app --reload"
 """
-    
-    with open("start_monitoring.sh", "w") as f:
+
+    with Path("start_monitoring.sh").open("w") as f:
         f.write(start_script)
-    os.chmod("start_monitoring.sh", 0o755)
-    print("✅ Created start_monitoring.sh script")
-    
+    Path("start_monitoring.sh").chmod(0o755)
+
     # Stop monitoring stack
     stop_script = """#!/bin/bash
 echo "🛑 Stopping monitoring stack..."
 docker-compose -f docker-compose.monitoring.yml down
 echo "✅ Monitoring stack stopped"
 """
-    
-    with open("stop_monitoring.sh", "w") as f:
-        f.write(stop_script)
-    os.chmod("stop_monitoring.sh", 0o755)
-    print("✅ Created stop_monitoring.sh script")
 
-def create_readme():
-    """Create comprehensive README for observability"""
+    with Path("stop_monitoring.sh").open("w") as f:
+        f.write(stop_script)
+    Path("stop_monitoring.sh").chmod(0o755)
+
+
+def create_readme() -> None:
+    """Create comprehensive README for observability."""
     readme_content = """# 🔍 Free Observability Stack for FastAPI
 
 A complete monitoring and observability solution using **100% free and open-source tools**.
@@ -323,42 +321,32 @@ register_health_check("my_service", custom_health_check)
 - Check logs: `docker-compose logs <service-name>`
 - Restart services: `./stop_monitoring.sh && ./start_monitoring.sh`
 """
-    
-    with open("README_OBSERVABILITY.md", "w") as f:
-        f.write(readme_content)
-    print("✅ Created comprehensive observability README")
 
-def main():
-    """Main setup function"""
-    print("🔍 Setting up Free Observability Stack for FastAPI")
-    print("=" * 60)
-    
+    with Path("README_OBSERVABILITY.md").open("w") as f:
+        f.write(readme_content)
+
+
+def main() -> None:
+    """Main setup function."""
     # Create directories
     create_directories()
-    
+
     # Install dependencies
     if not install_dependencies():
-        print("❌ Setup failed - could not install dependencies")
         sys.exit(1)
-    
+
     # Create configuration files
     create_grafana_datasource()
     create_grafana_dashboard_config()
     create_basic_dashboard()
-    
+
     # Create deployment scripts
     create_deployment_script()
-    
+
     # Create documentation
     create_readme()
-    
-    print("\n🎉 Observability stack setup complete!")
-    print("\n📋 Next steps:")
-    print("1. Run: ./start_monitoring.sh")
-    print("2. Start your FastAPI app: uvicorn app.main:app --reload")
-    print("3. Open Grafana: http://localhost:3000 (admin/grafana123)")
-    print("4. View metrics: http://localhost:8000/metrics")
-    print("\n📖 Read README_OBSERVABILITY.md for full documentation")
+
+
 
 if __name__ == "__main__":
-    main() 
+    main()

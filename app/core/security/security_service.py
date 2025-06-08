@@ -1,5 +1,4 @@
-"""
-Security service module that provides enterprise security features.
+"""Security service module that provides enterprise security features.
 This module initializes and exports the security_service singleton.
 """
 

@@ -1,5 +1,4 @@
-"""
-Smart Migration & Schema Evolution System for FastAPI Scaffold Generator v4.0
+"""Smart Migration & Schema Evolution System for FastAPI Scaffold Generator v4.0.
 
 This module provides intelligent database migration capabilities:
 - Zero-downtime migration generation
@@ -11,6 +10,4 @@ This module provides intelligent database migration capabilities:
 
 from .smart_migration_manager import SmartMigrationManager
 
-__all__ = [
-    'SmartMigrationManager'
-] 
+__all__ = ["SmartMigrationManager"]

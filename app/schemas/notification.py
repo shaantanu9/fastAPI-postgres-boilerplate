@@ -1,8 +1,5 @@
-"""
-Schemas for notification preferences.
-"""
+"""Schemas for notification preferences."""
 
-from typing import Optional
 from pydantic import BaseModel
 
 from app.models.notification import NotificationCategory, NotificationChannel

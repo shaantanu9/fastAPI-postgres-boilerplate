@@ -814,3 +814,7 @@ yarl==1.20.0 \
 # AWS SES Email Utility Dependencies
 boto3>=1.34.0
 jinja2>=3.1.0
+
+locust>=2.0.0  # Load testing
+bandit[toml]>=1.7.0  # Security scanning
+safety>=2.0.0  # Vulnerability scanning

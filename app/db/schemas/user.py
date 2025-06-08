@@ -1,6 +1,6 @@
-from pydantic import BaseModel, EmailStr, Field, constr, validator
-from typing import Optional, List, Dict, Any
 from datetime import datetime
+
+from pydantic import BaseModel, EmailStr, constr, field_validator
 
 
 class UserBase(BaseModel):
@@ -12,41 +12,51 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     password: constr(min_length=12, max_length=128)  # Enhanced password requirements
-    
-    @validator('password')
+
+    @field_validator("password")
+    @classmethod
     def validate_password_complexity(cls, v):
-        """Basic client-side password validation"""
+        """Basic client-side password validation."""
         if not any(c.isupper() for c in v):
-            raise ValueError('Password must contain at least one uppercase letter')
+            msg = "Password must contain at least one uppercase letter"
+            raise ValueError(msg)
         if not any(c.islower() for c in v):
-            raise ValueError('Password must contain at least one lowercase letter')
+            msg = "Password must contain at least one lowercase letter"
+            raise ValueError(msg)
         if not any(c.isdigit() for c in v):
-            raise ValueError('Password must contain at least one digit')
+            msg = "Password must contain at least one digit"
+            raise ValueError(msg)
         if not any(c in '!@#$%^&*(),.?":{}|<>' for c in v):
-            raise ValueError('Password must contain at least one special character')
+            msg = "Password must contain at least one special character"
+            raise ValueError(msg)
         return v
 
 
 class UserUpdate(BaseModel):
-    first_name: Optional[constr(min_length=1, max_length=50)] = None
-    last_name: Optional[constr(min_length=1, max_length=50)] = None
-    email: Optional[EmailStr] = None
-    password: Optional[constr(min_length=12, max_length=128)] = None
-    is_active: Optional[bool] = None
-    
-    @validator('password')
+    first_name: constr(min_length=1, max_length=50) | None = None
+    last_name: constr(min_length=1, max_length=50) | None = None
+    email: EmailStr | None = None
+    password: constr(min_length=12, max_length=128) | None = None
+    is_active: bool | None = None
+
+    @field_validator("password")
+    @classmethod
     def validate_password_complexity(cls, v):
-        """Basic client-side password validation"""
+        """Basic client-side password validation."""
         if v is None:
             return v
         if not any(c.isupper() for c in v):
-            raise ValueError('Password must contain at least one uppercase letter')
+            msg = "Password must contain at least one uppercase letter"
+            raise ValueError(msg)
         if not any(c.islower() for c in v):
-            raise ValueError('Password must contain at least one lowercase letter')
+            msg = "Password must contain at least one lowercase letter"
+            raise ValueError(msg)
         if not any(c.isdigit() for c in v):
-            raise ValueError('Password must contain at least one digit')
+            msg = "Password must contain at least one digit"
+            raise ValueError(msg)
         if not any(c in '!@#$%^&*(),.?":{}|<>' for c in v):
-            raise ValueError('Password must contain at least one special character')
+            msg = "Password must contain at least one special character"
+            raise ValueError(msg)
         return v
 
 
@@ -54,15 +64,15 @@ class UserRead(UserBase):
     id: str
     is_active: bool
     is_verified: bool
-    email_verified_at: Optional[datetime] = None
-    last_login: Optional[datetime] = None
+    email_verified_at: datetime | None = None
+    last_login: datetime | None = None
     failed_login_attempts: int
     passkey_enabled: bool
     mfa_enabled: bool
     max_sessions: int
     created_at: datetime
     updated_at: datetime
-    created_by: Optional[str] = None
+    created_by: str | None = None
 
     class Config:
         from_attributes = True
@@ -70,13 +80,13 @@ class UserRead(UserBase):
 
 class UserInDB(UserRead):
     hashed_password: str
-    account_locked_until: Optional[datetime] = None
+    account_locked_until: datetime | None = None
     password_changed_at: datetime
-    login_ip_history: Optional[str] = None
-    mfa_secret: Optional[str] = None
-    backup_codes: Optional[str] = None
-    device_fingerprints: Optional[str] = None
-    
+    login_ip_history: str | None = None
+    mfa_secret: str | None = None
+    backup_codes: str | None = None
+    device_fingerprints: str | None = None
+
     class Config:
         from_attributes = True
 
@@ -84,7 +94,7 @@ class UserInDB(UserRead):
 # Role and Permission Schemas
 class RoleBase(BaseModel):
     name: constr(min_length=1, max_length=50)
-    description: Optional[str] = None
+    description: str | None = None
     is_system_role: bool = False
     is_active: bool = True
 
@@ -96,7 +106,7 @@ class RoleCreate(RoleBase):
 class RoleRead(RoleBase):
     id: str
     created_at: datetime
-    
+
     class Config:
         from_attributes = True
 
@@ -105,8 +115,8 @@ class PermissionBase(BaseModel):
     name: constr(min_length=1, max_length=100)
     resource: constr(min_length=1, max_length=100)
     action: constr(min_length=1, max_length=50)
-    conditions: Optional[str] = None  # JSON string for ABAC conditions
-    description: Optional[str] = None
+    conditions: str | None = None  # JSON string for ABAC conditions
+    description: str | None = None
     is_active: bool = True
 
 
@@ -117,7 +127,7 @@ class PermissionCreate(PermissionBase):
 class PermissionRead(PermissionBase):
     id: str
     created_at: datetime
-    
+
     class Config:
         from_attributes = True
 
@@ -126,14 +136,14 @@ class PermissionRead(PermissionBase):
 class UserSessionRead(BaseModel):
     id: str
     session_token: str
-    ip_address: Optional[str] = None
-    user_agent: Optional[str] = None
-    device_fingerprint: Optional[str] = None
+    ip_address: str | None = None
+    user_agent: str | None = None
+    device_fingerprint: str | None = None
     is_active: bool
     expires_at: datetime
     created_at: datetime
     last_activity: datetime
-    
+
     class Config:
         from_attributes = True
 
@@ -143,13 +153,13 @@ class SecurityEventRead(BaseModel):
     id: str
     event_type: str
     event_category: str
-    event_data: Optional[str] = None  # JSON string
-    ip_address: Optional[str] = None
-    user_agent: Optional[str] = None
+    event_data: str | None = None  # JSON string
+    ip_address: str | None = None
+    user_agent: str | None = None
     risk_score: int
     status: str
     created_at: datetime
-    
+
     class Config:
         from_attributes = True
 
@@ -158,7 +168,7 @@ class SecurityEventRead(BaseModel):
 class LoginRequest(BaseModel):
     username_or_email: str
     password: str
-    mfa_token: Optional[str] = None
+    mfa_token: str | None = None
 
 
 class LoginResponse(BaseModel):
@@ -191,39 +201,45 @@ class PasswordResetConfirm(BaseModel):
 
 
 class BackupCodePasswordReset(BaseModel):
-    """Schema for password reset using backup code"""
+    """Schema for password reset using backup code."""
+
     username_or_email: str
     backup_code: str
     new_password: constr(min_length=12, max_length=128)
-    
-    @validator('new_password')
+
+    @field_validator("new_password")
+    @classmethod
     def validate_password_complexity(cls, v):
-        """Basic client-side password validation"""
+        """Basic client-side password validation."""
         if v is None:
             return v
         if not any(c.isupper() for c in v):
-            raise ValueError('Password must contain at least one uppercase letter')
+            msg = "Password must contain at least one uppercase letter"
+            raise ValueError(msg)
         if not any(c.islower() for c in v):
-            raise ValueError('Password must contain at least one lowercase letter')
+            msg = "Password must contain at least one lowercase letter"
+            raise ValueError(msg)
         if not any(c.isdigit() for c in v):
-            raise ValueError('Password must contain at least one digit')
+            msg = "Password must contain at least one digit"
+            raise ValueError(msg)
         if not any(c in '!@#$%^&*(),.?":{}|<>' for c in v):
-            raise ValueError('Password must contain at least one special character')
+            msg = "Password must contain at least one special character"
+            raise ValueError(msg)
         return v
 
 
 # User invitation schemas
 class UserInvitationRequest(BaseModel):
     email: str
-    organization_name: Optional[str] = None
-    role: Optional[str] = "user"
+    organization_name: str | None = None
+    role: str | None = "user"
 
 
 # Profile management schemas
 class UserProfileUpdate(BaseModel):
-    first_name: Optional[str] = None
-    last_name: Optional[str] = None
-    username: Optional[str] = None
+    first_name: str | None = None
+    last_name: str | None = None
+    username: str | None = None
     # Note: email changes require verification
 
 
@@ -235,7 +251,7 @@ class ChangePasswordRequest(BaseModel):
 class MFASetupResponse(BaseModel):
     secret: str
     qr_code: str  # Base64 encoded QR code image
-    backup_codes: List[str]
+    backup_codes: list[str]
 
 
 class MFAVerifyRequest(BaseModel):
@@ -244,15 +260,15 @@ class MFAVerifyRequest(BaseModel):
 
 class PasswordStrengthResponse(BaseModel):
     valid: bool
-    errors: List[str]
+    errors: list[str]
     strength: str
     score: int
 
 
 # Enhanced User with Roles
 class UserWithRoles(UserRead):
-    roles: List[RoleRead] = []
-    permissions: List[PermissionRead] = []
-    
+    roles: list[RoleRead] = []
+    permissions: list[PermissionRead] = []
+
     class Config:
         from_attributes = True

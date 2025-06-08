@@ -1,5 +1,4 @@
-"""
-Feature Flag System
+"""Feature Flag System.
 
 This package provides a flexible feature flag system that:
 - Controls access to premium features based on subscription tier
@@ -9,6 +8,12 @@ This package provides a flexible feature flag system that:
 """
 
 from .flag_manager import FeatureFlagManager, get_feature_flag_manager
-from .models import Feature, FeatureState, FeatureContext
+from .models import Feature, FeatureContext, FeatureState
 
-__all__ = ["FeatureFlagManager", "Feature", "FeatureState", "FeatureContext", "get_feature_flag_manager"]
+__all__ = [
+    "Feature",
+    "FeatureContext",
+    "FeatureFlagManager",
+    "FeatureState",
+    "get_feature_flag_manager",
+]

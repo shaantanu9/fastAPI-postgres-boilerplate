@@ -1,15 +1,15 @@
 # app/api/v1/endpoints/jobs.py
 
-from typing import Dict, List, Optional, Any
 from datetime import datetime, timedelta
+from typing import Annotated, Any
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
-from sqlalchemy import text, desc, asc
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
-
 
 router = APIRouter()
 
@@ -19,14 +19,14 @@ class JobStatus(BaseModel):
     task_name: str
     status: str
     queue_name: str
-    scheduled_at: Optional[datetime]
-    started_at: Optional[datetime]
-    finished_at: Optional[datetime]
+    scheduled_at: datetime | None
+    started_at: datetime | None
+    finished_at: datetime | None
     attempts: int
-    args: Dict[str, Any]
-    kwargs: Dict[str, Any]
-    result: Optional[Any] = None
-    exception: Optional[str] = None
+    args: dict[str, Any]
+    kwargs: dict[str, Any]
+    result: Any | None = None
+    exception: str | None = None
 
 
 class JobStats(BaseModel):
@@ -38,7 +38,7 @@ class JobStats(BaseModel):
     cancelled_jobs: int
     retry_jobs: int
     jobs_last_24h: int
-    average_execution_time: Optional[float] = None
+    average_execution_time: float | None = None
 
 
 class QueueStats(BaseModel):
@@ -49,26 +49,26 @@ class QueueStats(BaseModel):
     succeeded_jobs_today: int
 
 
-@router.get("/stats", response_model=JobStats)
-async def get_job_stats(
-    session: AsyncSession = Depends(get_db)
-) -> JobStats:
-    """
-    Retrieve overall statistics for all jobs in the system.
+@router.get("/stats")
+async def get_job_stats(session: Annotated[AsyncSession, Depends(get_db)]) -> JobStats:
+    """Retrieve overall statistics for all jobs in the system.
 
     Args:
         session (AsyncSession): Database session dependency.
+
     Returns:
         JobStats: Aggregated job statistics (counts, averages, etc.).
+
     Raises:
         None: Returns empty stats on error or if table does not exist.
+
     """
     try:
         # Check if procrastinate_jobs table exists
         table_check = text("""
             SELECT EXISTS (
-                SELECT FROM information_schema.tables 
-                WHERE table_schema = 'public' 
+                SELECT FROM information_schema.tables
+                WHERE table_schema = 'public'
                 AND table_name = 'procrastinate_jobs'
             );
         """)
@@ -84,51 +84,51 @@ async def get_job_stats(
                 cancelled_jobs=0,
                 retry_jobs=0,
                 jobs_last_24h=0,
-                average_execution_time=None
+                average_execution_time=None,
             )
-        
+
         # Get total counts by status
         status_query = text("""
             SELECT status, COUNT(*) as count
-            FROM procrastinate_jobs 
+            FROM procrastinate_jobs
             GROUP BY status
         """)
         status_result = await session.execute(status_query)
         status_counts = {row.status: row.count for row in status_result}
-        
+
         # Get jobs from last 24 hours
         last_24h_query = text("""
             SELECT COUNT(*) as count
-            FROM procrastinate_jobs 
+            FROM procrastinate_jobs
             WHERE scheduled_at >= NOW() - INTERVAL '24 HOURS'
         """)
         last_24h_result = await session.execute(last_24h_query)
         jobs_last_24h = last_24h_result.scalar() or 0
-        
+
         # Get average execution time for succeeded jobs - remove since procrastinate doesn't have timing columns
         # avg_time_query = text("""
         #     SELECT AVG(EXTRACT(EPOCH FROM (finished_at - started_at))) as avg_time
-        #     FROM procrastinate_jobs 
-        #     WHERE status = 'succeeded' 
-        #     AND started_at IS NOT NULL 
+        #     FROM procrastinate_jobs
+        #     WHERE status = 'succeeded'
+        #     AND started_at IS NOT NULL
         #     AND finished_at IS NOT NULL
         #     AND finished_at >= NOW() - INTERVAL '7 DAYS'
         # """)
         # avg_time_result = await session.execute(avg_time_query)
         # avg_execution_time = avg_time_result.scalar()
-        
+
         return JobStats(
             total_jobs=sum(status_counts.values()),
-            todo_jobs=status_counts.get('todo', 0),
-            doing_jobs=status_counts.get('doing', 0),
-            succeeded_jobs=status_counts.get('succeeded', 0),
-            failed_jobs=status_counts.get('failed', 0),
-            cancelled_jobs=status_counts.get('cancelled', 0),
-            retry_jobs=status_counts.get('retry', 0),
+            todo_jobs=status_counts.get("todo", 0),
+            doing_jobs=status_counts.get("doing", 0),
+            succeeded_jobs=status_counts.get("succeeded", 0),
+            failed_jobs=status_counts.get("failed", 0),
+            cancelled_jobs=status_counts.get("cancelled", 0),
+            retry_jobs=status_counts.get("retry", 0),
             jobs_last_24h=jobs_last_24h,
-            average_execution_time=None  # Not available in Procrastinate
+            average_execution_time=None,  # Not available in Procrastinate
         )
-    except Exception as e:
+    except Exception:
         # Return empty stats on any error
         return JobStats(
             total_jobs=0,
@@ -139,30 +139,30 @@ async def get_job_stats(
             cancelled_jobs=0,
             retry_jobs=0,
             jobs_last_24h=0,
-            average_execution_time=None
+            average_execution_time=None,
         )
 
 
-@router.get("/queues", response_model=List[QueueStats])
-async def get_queue_stats(
-    session: AsyncSession = Depends(get_db)
-) -> List[QueueStats]:
-    """
-    Retrieve statistics for all job queues (pending, running, failed, succeeded).
+@router.get("/queues")
+async def get_queue_stats(session: Annotated[AsyncSession, Depends(get_db)]) -> list[QueueStats]:
+    """Retrieve statistics for all job queues (pending, running, failed, succeeded).
 
     Args:
         session (AsyncSession): Database session dependency.
+
     Returns:
         List[QueueStats]: List of statistics for each queue.
+
     Raises:
         None: Returns empty list on error or if table does not exist.
+
     """
     try:
         # Check if procrastinate_jobs table exists
         table_check = text("""
             SELECT EXISTS (
-                SELECT FROM information_schema.tables 
-                WHERE table_schema = 'public' 
+                SELECT FROM information_schema.tables
+                WHERE table_schema = 'public'
                 AND table_name = 'procrastinate_jobs'
             );
         """)
@@ -170,19 +170,19 @@ async def get_queue_stats(
         if not table_exists.scalar():
             # Return empty list if table doesn't exist
             return []
-        
+
         queue_query = text("""
-            SELECT 
+            SELECT
                 queue_name,
                 SUM(CASE WHEN status = 'todo' THEN 1 ELSE 0 END) as pending_jobs,
                 SUM(CASE WHEN status = 'doing' THEN 1 ELSE 0 END) as running_jobs,
                 SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed_jobs,
                 SUM(CASE WHEN status = 'succeeded' AND scheduled_at >= CURRENT_DATE THEN 1 ELSE 0 END) as succeeded_jobs_today
-            FROM procrastinate_jobs 
+            FROM procrastinate_jobs
             GROUP BY queue_name
             ORDER BY queue_name
         """)
-        
+
         result = await session.execute(queue_query)
         return [
             QueueStats(
@@ -190,26 +190,25 @@ async def get_queue_stats(
                 pending_jobs=row.pending_jobs,
                 running_jobs=row.running_jobs,
                 failed_jobs=row.failed_jobs,
-                succeeded_jobs_today=row.succeeded_jobs_today
+                succeeded_jobs_today=row.succeeded_jobs_today,
             )
             for row in result
         ]
-    except Exception as e:
+    except Exception:
         # Return empty list on any error
         return []
 
 
-@router.get("/", response_model=List[JobStatus])
+@router.get("/")
 async def list_jobs(
-    status: Optional[str] = Query(None, description="Filter by job status"),
-    queue: Optional[str] = Query(None, description="Filter by queue name"),
-    task_name: Optional[str] = Query(None, description="Filter by task name"),
-    limit: int = Query(50, ge=1, le=500, description="Number of jobs to return"),
-    offset: int = Query(0, ge=0, description="Number of jobs to skip"),
-    session: AsyncSession = Depends(get_db)
-) -> List[JobStatus]:
-    """
-    Retrieve a list of jobs with optional filtering by status, queue, or task name.
+    status: Annotated[str | None, Query(description="Filter by job status")] = None,
+    queue: Annotated[str | None, Query(description="Filter by queue name")] = None,
+    task_name: Annotated[str | None, Query(description="Filter by task name")] = None,
+    limit: Annotated[int, Query(ge=1, le=500, description="Number of jobs to return")] = 50,
+    offset: Annotated[int, Query(ge=0, description="Number of jobs to skip")] = 0,
+    session: AsyncSession = Depends(get_db),
+) -> list[JobStatus]:
+    """Retrieve a list of jobs with optional filtering by status, queue, or task name.
 
     Args:
         status (Optional[str]): Filter jobs by status (e.g., todo, doing, failed).
@@ -218,17 +217,20 @@ async def list_jobs(
         limit (int): Maximum number of jobs to return.
         offset (int): Number of jobs to skip (pagination).
         session (AsyncSession): Database session dependency.
+
     Returns:
         List[JobStatus]: List of jobs matching the filters.
+
     Raises:
         None: Returns empty list on error or if table does not exist.
+
     """
     try:
         # Check if procrastinate_jobs table exists
         table_check = text("""
             SELECT EXISTS (
-                SELECT FROM information_schema.tables 
-                WHERE table_schema = 'public' 
+                SELECT FROM information_schema.tables
+                WHERE table_schema = 'public'
                 AND table_name = 'procrastinate_jobs'
             );
         """)
@@ -236,27 +238,29 @@ async def list_jobs(
         if not table_exists.scalar():
             # Return empty list if table doesn't exist
             return []
-        
+
         # Build dynamic query
         where_conditions = []
         params = {}
-        
+
         if status:
             where_conditions.append("status = :status")
             params["status"] = status
-        
+
         if queue:
             where_conditions.append("queue_name = :queue")
             params["queue"] = queue
-        
+
         if task_name:
             where_conditions.append("task_name ILIKE :task_name")
             params["task_name"] = f"%{task_name}%"
-        
-        where_clause = "WHERE " + " AND ".join(where_conditions) if where_conditions else ""
-        
+
+        where_clause = (
+            "WHERE " + " AND ".join(where_conditions) if where_conditions else ""
+        )
+
         query = text(f"""
-            SELECT 
+            SELECT
                 id,
                 task_name,
                 status,
@@ -264,58 +268,59 @@ async def list_jobs(
                 scheduled_at,
                 attempts,
                 args
-            FROM procrastinate_jobs 
+            FROM procrastinate_jobs
             {where_clause}
             ORDER BY id DESC
             LIMIT :limit OFFSET :offset
         """)
-        
+
         params.update({"limit": limit, "offset": offset})
         result = await session.execute(query, params)
-        
+
         jobs = []
         for row in result:
-            jobs.append(JobStatus(
-                id=str(row.id),
-                task_name=row.task_name,
-                status=row.status,
-                queue_name=row.queue_name,
-                scheduled_at=row.scheduled_at,
-                started_at=None,  # Procrastinate doesn't have started_at
-                finished_at=None,  # Procrastinate doesn't have finished_at
-                attempts=row.attempts,
-                args=row.args or {},
-                kwargs={}  # Empty since procrastinate combines args and kwargs
-            ))
-        
+            jobs.append(
+                JobStatus(
+                    id=str(row.id),
+                    task_name=row.task_name,
+                    status=row.status,
+                    queue_name=row.queue_name,
+                    scheduled_at=row.scheduled_at,
+                    started_at=None,  # Procrastinate doesn't have started_at
+                    finished_at=None,  # Procrastinate doesn't have finished_at
+                    attempts=row.attempts,
+                    args=row.args or {},
+                    kwargs={},  # Empty since procrastinate combines args and kwargs
+                ),
+            )
+
         return jobs
-    except Exception as e:
+    except Exception:
         # Return empty list on any error
         return []
 
 
-@router.get("/job/{job_id}", response_model=JobStatus)
-async def get_job(
-    job_id: str,
-    session: AsyncSession = Depends(get_db)
-) -> JobStatus:
-    """
-    Retrieve detailed information about a specific job by its ID.
+@router.get("/job/{job_id}")
+async def get_job(job_id: str, session: Annotated[AsyncSession, Depends(get_db)]) -> JobStatus:
+    """Retrieve detailed information about a specific job by its ID.
 
     Args:
         job_id (str): Unique ID of the job.
         session (AsyncSession): Database session dependency.
+
     Returns:
         JobStatus: Detailed status and metadata for the job.
+
     Raises:
         HTTPException: If the job system is not initialized or job is not found.
+
     """
     try:
         # Check if procrastinate_jobs table exists
         table_check = text("""
             SELECT EXISTS (
-                SELECT FROM information_schema.tables 
-                WHERE table_schema = 'public' 
+                SELECT FROM information_schema.tables
+                WHERE table_schema = 'public'
                 AND table_name = 'procrastinate_jobs'
             );
         """)
@@ -323,11 +328,11 @@ async def get_job(
         if not table_exists.scalar():
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Job system not initialized"
+                detail="Job system not initialized",
             )
-        
+
         query = text("""
-            SELECT 
+            SELECT
                 id,
                 task_name,
                 status,
@@ -335,19 +340,18 @@ async def get_job(
                 scheduled_at,
                 attempts,
                 args
-            FROM procrastinate_jobs 
+            FROM procrastinate_jobs
             WHERE id = :job_id
         """)
-        
+
         result = await session.execute(query, {"job_id": job_id})
         row = result.first()
-        
+
         if not row:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Job not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="Job not found",
             )
-        
+
         return JobStatus(
             id=str(row.id),
             task_name=row.task_name,
@@ -358,137 +362,141 @@ async def get_job(
             finished_at=None,  # Procrastinate doesn't have finished_at
             attempts=row.attempts,
             args=row.args or {},
-            kwargs={}  # Empty since procrastinate combines args and kwargs
+            kwargs={},  # Empty since procrastinate combines args and kwargs
         )
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Job system error"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Job system error",
         )
 
 
 @router.post("/job/{job_id}/retry")
 async def retry_job(
-    job_id: str,
-    session: AsyncSession = Depends(get_db)
-) -> Dict[str, str]:
-    """
-    Retry a failed or cancelled job by re-queuing it for execution.
+    job_id: str, session: Annotated[AsyncSession, Depends(get_db)],
+) -> dict[str, str]:
+    """Retry a failed or cancelled job by re-queuing it for execution.
 
     Args:
         job_id (str): Unique ID of the job to retry.
         session (AsyncSession): Database session dependency.
+
     Returns:
         dict: Status message indicating retry result.
+
     Raises:
         HTTPException: If job is not found or cannot be retried.
+
     """
     # Update job status to retry
     query = text("""
-        UPDATE procrastinate_jobs 
-        SET status = 'todo', 
+        UPDATE procrastinate_jobs
+        SET status = 'todo',
             attempts = attempts + 1,
             scheduled_at = NOW()
-        WHERE id = :job_id 
+        WHERE id = :job_id
         AND status IN ('failed', 'cancelled')
     """)
-    
+
     result = await session.execute(query, {"job_id": job_id})
     await session.commit()
-    
+
     if result.rowcount == 0:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Job not found or cannot be retried"
+            detail="Job not found or cannot be retried",
         )
-    
+
     return {"message": "Job queued for retry"}
 
 
 @router.delete("/job/{job_id}")
 async def cancel_job(
-    job_id: str,
-    session: AsyncSession = Depends(get_db)
-) -> Dict[str, str]:
-    """
-    Cancel a pending job that has not yet started execution.
+    job_id: str, session: Annotated[AsyncSession, Depends(get_db)],
+) -> dict[str, str]:
+    """Cancel a pending job that has not yet started execution.
 
     Args:
         job_id (str): Unique ID of the job to cancel.
         session (AsyncSession): Database session dependency.
+
     Returns:
         dict: Status message indicating cancellation result.
+
     Raises:
         HTTPException: If job is not found or is not in a cancellable state.
+
     """
     query = text("""
-        UPDATE procrastinate_jobs 
+        UPDATE procrastinate_jobs
         SET status = 'cancelled'
-        WHERE id = :job_id 
+        WHERE id = :job_id
         AND status = 'todo'
     """)
-    
+
     result = await session.execute(query, {"job_id": job_id})
     await session.commit()
-    
+
     if result.rowcount == 0:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Job not found or cannot be cancelled"
+            detail="Job not found or cannot be cancelled",
         )
-    
+
     return {"message": "Job cancelled"}
 
 
 @router.post("/cleanup")
 async def cleanup_old_jobs(
-    days: int = Query(7, ge=1, le=365, description="Delete jobs older than this many days"),
-    status_filter: Optional[str] = Query("succeeded", description="Only delete jobs with this status"),
-    session: AsyncSession = Depends(get_db)
-) -> Dict[str, int]:
-    """
-    Delete completed jobs older than a specified number of days (and optional status).
+    days: Annotated[int, Query(ge=1, le=365, description="Delete jobs older than this many days")] = 7,
+    status_filter: Annotated[str | None, Query(description="Only delete jobs with this status")] = "succeeded",
+    session: AsyncSession = Depends(get_db),
+) -> dict[str, int]:
+    """Delete completed jobs older than a specified number of days (and optional status).
 
     Args:
         days (int): Delete jobs older than this many days.
         status_filter (Optional[str]): Only delete jobs with this status (e.g., succeeded, failed).
         session (AsyncSession): Database session dependency.
+
     Returns:
         dict: Number of deleted jobs.
+
     Raises:
         None: Returns deleted count; does not raise on error.
+
     """
     cutoff_date = datetime.utcnow() - timedelta(days=days)
-    
+
     where_clause = "WHERE finished_at < :cutoff_date"
     params = {"cutoff_date": cutoff_date}
-    
+
     if status_filter:
         where_clause += " AND status = :status"
         params["status"] = status_filter
-    
+
     query = text(f"""
-        DELETE FROM procrastinate_jobs 
+        DELETE FROM procrastinate_jobs
         {where_clause}
     """)
-    
+
     result = await session.execute(query, params)
     await session.commit()
-    
+
     return {"deleted_count": result.rowcount}
 
 
 @router.get("/ui", response_class=HTMLResponse)
 async def job_monitoring_ui():
-    """
-    Render a simple HTML dashboard for job monitoring and status overview.
+    """Render a simple HTML dashboard for job monitoring and status overview.
 
     Returns:
         HTMLResponse: Rendered HTML page for job monitoring.
+
     Raises:
         None.
+
     """
     html_content = """
     <!DOCTYPE html>
@@ -637,7 +645,7 @@ async def job_monitoring_ui():
                 try {
                     const response = await fetch('/api/v1/jobs/stats');
                     const stats = await response.json();
-                    
+
                     const statsGrid = document.getElementById('stats-grid');
                     statsGrid.innerHTML = `
                         <div class="stat-card">
@@ -674,14 +682,14 @@ async def job_monitoring_ui():
                 try {
                     const statusFilter = document.getElementById('statusFilter').value;
                     const taskFilter = document.getElementById('taskFilter').value;
-                    
+
                     let url = '/api/v1/jobs/?limit=20';
                     if (statusFilter) url += `&status=${statusFilter}`;
                     if (taskFilter) url += `&task_name=${taskFilter}`;
-                    
+
                     const response = await fetch(url);
                     const jobs = await response.json();
-                    
+
                     const jobsList = document.getElementById('jobs-list');
                     jobsList.innerHTML = jobs.map(job => `
                         <div class="job-row">
@@ -723,7 +731,7 @@ async def job_monitoring_ui():
 
             // Event listeners
             document.getElementById('statusFilter').addEventListener('change', loadJobs);
-            document.getElementById('taskFilter').addEventListener('input', 
+            document.getElementById('taskFilter').addEventListener('input',
                 debounce(loadJobs, 500)
             );
 
@@ -745,5 +753,5 @@ async def job_monitoring_ui():
     </body>
     </html>
     """
-    
-    return HTMLResponse(content=html_content) 
+
+    return HTMLResponse(content=html_content)

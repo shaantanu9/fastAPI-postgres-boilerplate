@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-Quick Production Fixes
+"""Quick Production Fixes.
 
 This script implements the most critical production fixes immediately:
 1. Error tracking integration (Sentry)
@@ -10,16 +9,12 @@ This script implements the most critical production fixes immediately:
 5. Health monitoring enhancements
 """
 
-import os
 import sys
-import subprocess
-import json
 from pathlib import Path
 
-def setup_sentry_integration():
-    """Add Sentry error tracking integration"""
-    print("🔧 Setting up Sentry error tracking...")
-    
+
+def setup_sentry_integration() -> None:
+    """Add Sentry error tracking integration."""
     # Add sentry-sdk to requirements.txt if not present
     requirements_file = Path("requirements.txt")
     if requirements_file.exists():
@@ -27,32 +22,9 @@ def setup_sentry_integration():
         if "sentry-sdk" not in content:
             with open(requirements_file, "a") as f:
                 f.write("sentry-sdk[fastapi]==1.38.0\n")
-            print("  ✅ Added sentry-sdk to requirements.txt")
-    
-    # Create/update main.py with Sentry integration
-    sentry_code = '''
-# Sentry Error Tracking Integration
-import sentry_sdk
-from sentry_sdk.integrations.fastapi import FastApiIntegration
-from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
-from sentry_sdk.integrations.asyncio import AsyncioIntegration
 
-# Initialize Sentry if DSN is provided
-if hasattr(settings, 'SENTRY_DSN') and settings.SENTRY_DSN:
-    sentry_sdk.init(
-        dsn=settings.SENTRY_DSN,
-        integrations=[
-            FastApiIntegration(auto_enabling_integrations=False),
-            SqlalchemyIntegration(),
-            AsyncioIntegration(),
-        ],
-        traces_sample_rate=0.1,  # 10% of transactions for performance monitoring
-        environment=settings.ENVIRONMENT,
-        before_send=lambda event, hint: event if settings.ENVIRONMENT == "production" else None,
-    )
-    logger.info("Sentry error tracking initialized")
-'''
-    
+    # Create/update main.py with Sentry integration
+
     # Add to config.py
     config_file = Path("app/core/config.py")
     if config_file.exists():
@@ -61,17 +33,14 @@ if hasattr(settings, 'SENTRY_DSN') and settings.SENTRY_DSN:
             # Add SENTRY_DSN to Settings class
             new_content = content.replace(
                 "class Settings(BaseSettings):",
-                "class Settings(BaseSettings):\n    # Error tracking\n    SENTRY_DSN: Optional[str] = None"
+                "class Settings(BaseSettings):\n    # Error tracking\n    SENTRY_DSN: Optional[str] = None",
             )
             config_file.write_text(new_content)
-            print("  ✅ Added SENTRY_DSN to configuration")
-    
-    print("  📝 Don't forget to set SENTRY_DSN environment variable in production!")
 
-def setup_enhanced_logging():
-    """Setup enhanced production logging"""
-    print("🔧 Setting up enhanced logging...")
-    
+
+
+def setup_enhanced_logging() -> None:
+    """Setup enhanced production logging."""
     logging_config_path = Path("app/core/logging_production.py")
     logging_config = '''"""
 Enhanced Production Logging Configuration
@@ -87,7 +56,7 @@ from typing import Dict, Any
 
 class ProductionFormatter(logging.Formatter):
     """Enhanced JSON formatter for production logs"""
-    
+
     def format(self, record: logging.LogRecord) -> str:
         log_entry = {
             "timestamp": datetime.utcnow().isoformat() + "Z",
@@ -100,11 +69,11 @@ class ProductionFormatter(logging.Formatter):
             "process": record.process,
             "thread": record.thread,
         }
-        
+
         # Add exception info if present
         if record.exc_info:
             log_entry["exception"] = self.formatException(record.exc_info)
-        
+
         # Add extra fields
         if hasattr(record, 'user_id'):
             log_entry["user_id"] = record.user_id
@@ -112,7 +81,7 @@ class ProductionFormatter(logging.Formatter):
             log_entry["request_id"] = record.request_id
         if hasattr(record, 'duration'):
             log_entry["duration_ms"] = record.duration
-            
+
         return json.dumps(log_entry, default=str)
 
 def setup_production_logging(
@@ -122,27 +91,27 @@ def setup_production_logging(
     backup_count: int = 10
 ):
     """Setup production-grade logging with rotation"""
-    
+
     # Create logs directory
     log_path = Path(log_dir)
     log_path.mkdir(parents=True, exist_ok=True)
-    
+
     # Create formatter
     formatter = ProductionFormatter()
-    
+
     # Root logger configuration
     root_logger = logging.getLogger()
     root_logger.setLevel(getattr(logging, log_level.upper()))
-    
+
     # Remove existing handlers
     for handler in root_logger.handlers[:]:
         root_logger.removeHandler(handler)
-    
+
     # Console handler (JSON format for production)
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setFormatter(formatter)
     root_logger.addHandler(console_handler)
-    
+
     # File handler with rotation
     file_handler = logging.handlers.RotatingFileHandler(
         log_path / "app.log",
@@ -151,7 +120,7 @@ def setup_production_logging(
     )
     file_handler.setFormatter(formatter)
     root_logger.addHandler(file_handler)
-    
+
     # Error file handler
     error_handler = logging.handlers.RotatingFileHandler(
         log_path / "error.log",
@@ -161,7 +130,7 @@ def setup_production_logging(
     error_handler.setLevel(logging.ERROR)
     error_handler.setFormatter(formatter)
     root_logger.addHandler(error_handler)
-    
+
     # Security events handler
     security_handler = logging.handlers.RotatingFileHandler(
         log_path / "security.log",
@@ -169,28 +138,26 @@ def setup_production_logging(
         backupCount=backup_count
     )
     security_handler.setFormatter(formatter)
-    
+
     # Create security logger
     security_logger = logging.getLogger("security")
     security_logger.addHandler(security_handler)
     security_logger.setLevel(logging.INFO)
-    
+
     # Configure third-party loggers
     logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
     logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
-    
+
     return root_logger
 '''
-    
-    logging_config_path.write_text(logging_config)
-    print("  ✅ Created enhanced logging configuration")
 
-def setup_backup_automation():
-    """Setup automated database backup"""
-    print("🔧 Setting up automated database backup...")
-    
+    logging_config_path.write_text(logging_config)
+
+
+def setup_backup_automation() -> None:
+    """Setup automated database backup."""
     # Create systemd service for backup
-    backup_service = '''[Unit]
+    backup_service = """[Unit]
 Description=FastAPI Database Backup
 After=network.target
 
@@ -208,10 +175,10 @@ StandardError=journal
 
 [Install]
 WantedBy=multi-user.target
-'''
-    
+"""
+
     # Create systemd timer for daily backups
-    backup_timer = '''[Unit]
+    backup_timer = """[Unit]
 Description=Run FastAPI Database Backup Daily
 Requires=fastapi-backup.service
 
@@ -222,23 +189,19 @@ Persistent=true
 
 [Install]
 WantedBy=timers.target
-'''
-    
+"""
+
     # Create directories
     Path("production_configs/systemd").mkdir(parents=True, exist_ok=True)
-    
+
     # Write service and timer files
     Path("production_configs/systemd/fastapi-backup.service").write_text(backup_service)
     Path("production_configs/systemd/fastapi-backup.timer").write_text(backup_timer)
-    
-    print("  ✅ Created backup automation files")
-    print("  📝 Install with: sudo cp production_configs/systemd/fastapi-backup.* /etc/systemd/system/")
-    print("  📝 Enable with: sudo systemctl enable --now fastapi-backup.timer")
 
-def setup_security_improvements():
-    """Setup security improvements"""
-    print("🔧 Implementing security improvements...")
-    
+
+
+def setup_security_improvements() -> None:
+    """Setup security improvements."""
     # Create security configuration
     security_config = '''"""
 Enhanced Security Configuration
@@ -253,25 +216,25 @@ from collections import defaultdict
 
 class SecurityEnhancementMiddleware(BaseHTTPMiddleware):
     """Enhanced security middleware"""
-    
+
     def __init__(self, app):
         super().__init__(app)
         self.failed_attempts = defaultdict(list)
         self.blocked_ips = set()
-        
+
     async def dispatch(self, request: Request, call_next):
         client_ip = self._get_client_ip(request)
-        
+
         # Check if IP is blocked
         if client_ip in self.blocked_ips:
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail="IP temporarily blocked due to suspicious activity"
             )
-        
+
         # Security headers
         response = await call_next(request)
-        
+
         # Enhanced security headers
         response.headers.update({
             "X-Content-Type-Options": "nosniff",
@@ -286,45 +249,45 @@ class SecurityEnhancementMiddleware(BaseHTTPMiddleware):
             "Cross-Origin-Opener-Policy": "same-origin",
             "Cross-Origin-Resource-Policy": "same-origin",
         })
-        
+
         # Log failed authentication attempts
         if response.status_code == 401:
             self._track_failed_attempt(client_ip, request.url.path)
-        
+
         return response
-    
+
     def _get_client_ip(self, request: Request) -> str:
         """Get real client IP"""
         # Check X-Forwarded-For header first
         forwarded_for = request.headers.get("X-Forwarded-For")
         if forwarded_for:
             return forwarded_for.split(",")[0].strip()
-        
+
         # Check X-Real-IP header
         real_ip = request.headers.get("X-Real-IP")
         if real_ip:
             return real_ip.strip()
-        
+
         # Fall back to direct connection IP
         return request.client.host if request.client else "unknown"
-    
+
     def _track_failed_attempt(self, ip: str, path: str):
         """Track failed authentication attempts"""
         current_time = time.time()
-        
+
         # Remove old attempts (older than 1 hour)
         self.failed_attempts[ip] = [
             attempt_time for attempt_time in self.failed_attempts[ip]
             if current_time - attempt_time < 3600
         ]
-        
+
         # Add current attempt
         self.failed_attempts[ip].append(current_time)
-        
+
         # Block IP if too many failed attempts
         if len(self.failed_attempts[ip]) >= 10:  # 10 failed attempts in 1 hour
             self.blocked_ips.add(ip)
-            
+
             # Log security event
             import logging
             security_logger = logging.getLogger("security")
@@ -333,14 +296,12 @@ class SecurityEnhancementMiddleware(BaseHTTPMiddleware):
                 extra={"ip": ip, "path": path, "attempts": len(self.failed_attempts[ip])}
             )
 '''
-    
-    Path("app/middleware/security_enhancement.py").write_text(security_config)
-    print("  ✅ Created enhanced security middleware")
 
-def setup_health_monitoring():
-    """Setup enhanced health monitoring"""
-    print("🔧 Setting up enhanced health monitoring...")
-    
+    Path("app/middleware/security_enhancement.py").write_text(security_config)
+
+
+def setup_health_monitoring() -> None:
+    """Setup enhanced health monitoring."""
     health_config = '''"""
 Enhanced Health Monitoring
 """
@@ -357,11 +318,11 @@ router = APIRouter()
 
 class HealthMonitor:
     """Enhanced health monitoring system"""
-    
+
     def __init__(self, db_engine: AsyncEngine = None, redis_url: str = None):
         self.db_engine = db_engine
         self.redis_url = redis_url
-        
+
     async def check_system_health(self) -> Dict[str, Any]:
         """Comprehensive system health check"""
         health_data = {
@@ -369,43 +330,43 @@ class HealthMonitor:
             "status": "healthy",
             "checks": {}
         }
-        
+
         # System metrics
         health_data["checks"]["system"] = await self._check_system_metrics()
-        
+
         # Database health
         health_data["checks"]["database"] = await self._check_database_health()
-        
+
         # Redis health
         health_data["checks"]["redis"] = await self._check_redis_health()
-        
+
         # Process health
         health_data["checks"]["process"] = await self._check_process_health()
-        
+
         # Determine overall status
         failed_checks = [
             check for check in health_data["checks"].values()
             if check["status"] != "healthy"
         ]
-        
+
         if failed_checks:
             health_data["status"] = "degraded" if len(failed_checks) < 3 else "unhealthy"
-        
+
         return health_data
-    
+
     async def _check_system_metrics(self) -> Dict[str, Any]:
         """Check system resource usage"""
         try:
             cpu_percent = psutil.cpu_percent(interval=0.1)
             memory = psutil.virtual_memory()
             disk = psutil.disk_usage('/')
-            
+
             status = "healthy"
             if cpu_percent > 90 or memory.percent > 90 or disk.percent > 90:
                 status = "degraded"
             if cpu_percent > 95 or memory.percent > 95 or disk.percent > 95:
                 status = "unhealthy"
-            
+
             return {
                 "status": status,
                 "cpu_percent": cpu_percent,
@@ -415,27 +376,27 @@ class HealthMonitor:
             }
         except Exception as e:
             return {"status": "unhealthy", "error": str(e)}
-    
+
     async def _check_database_health(self) -> Dict[str, Any]:
         """Check database connectivity and performance"""
         if not self.db_engine:
             return {"status": "skipped", "reason": "No database engine configured"}
-        
+
         try:
             start_time = asyncio.get_event_loop().time()
-            
+
             async with self.db_engine.begin() as conn:
                 result = await conn.execute("SELECT 1 as health_check")
                 row = result.fetchone()
-                
+
             response_time = (asyncio.get_event_loop().time() - start_time) * 1000
-            
+
             status = "healthy"
             if response_time > 1000:  # 1 second
                 status = "degraded"
             if response_time > 5000:  # 5 seconds
                 status = "unhealthy"
-                
+
             return {
                 "status": status,
                 "response_time_ms": round(response_time, 2),
@@ -447,39 +408,39 @@ class HealthMonitor:
             }
         except Exception as e:
             return {"status": "unhealthy", "error": str(e)}
-    
+
     async def _check_redis_health(self) -> Dict[str, Any]:
         """Check Redis connectivity"""
         if not self.redis_url:
             return {"status": "skipped", "reason": "No Redis URL configured"}
-        
+
         try:
             start_time = asyncio.get_event_loop().time()
-            
+
             redis = aioredis.from_url(self.redis_url)
             await redis.ping()
             await redis.close()
-            
+
             response_time = (asyncio.get_event_loop().time() - start_time) * 1000
-            
+
             status = "healthy"
             if response_time > 500:  # 500ms
                 status = "degraded"
             if response_time > 2000:  # 2 seconds
                 status = "unhealthy"
-                
+
             return {
                 "status": status,
                 "response_time_ms": round(response_time, 2)
             }
         except Exception as e:
             return {"status": "unhealthy", "error": str(e)}
-    
+
     async def _check_process_health(self) -> Dict[str, Any]:
         """Check current process health"""
         try:
             process = psutil.Process()
-            
+
             return {
                 "status": "healthy",
                 "pid": process.pid,
@@ -496,24 +457,22 @@ async def detailed_health_check():
     """Detailed health check endpoint"""
     from app.db.session import engine
     from app.core.config import get_settings
-    
+
     settings = get_settings()
     monitor = HealthMonitor(
         db_engine=engine,
         redis_url=getattr(settings, 'REDIS_URL', None)
     )
-    
+
     return await monitor.check_system_health()
 '''
-    
-    Path("app/api/v1/endpoints/health_enhanced.py").write_text(health_config)
-    print("  ✅ Created enhanced health monitoring")
 
-def setup_environment_template():
-    """Create production environment template"""
-    print("🔧 Creating production environment template...")
-    
-    env_template = '''# FastAPI Production Environment Configuration
+    Path("app/api/v1/endpoints/health_enhanced.py").write_text(health_config)
+
+
+def setup_environment_template() -> None:
+    """Create production environment template."""
+    env_template = """# FastAPI Production Environment Configuration
 
 # Application Settings
 APP_NAME="FastAPI Production App"
@@ -580,49 +539,32 @@ HSTS_MAX_AGE=31536000
 LOG_DIR=/var/log/fastapi
 LOG_ROTATION_SIZE=50MB
 LOG_RETENTION_DAYS=30
-'''
-    
-    Path(".env.production.template").write_text(env_template)
-    print("  ✅ Created production environment template")
-    print("  📝 Copy to .env.production and update with your values")
+"""
 
-def run_production_tests():
-    """Run basic production readiness tests"""
-    print("🧪 Running basic production readiness tests...")
-    
+    Path(".env.production.template").write_text(env_template)
+
+
+def run_production_tests() -> bool | None:
+    """Run basic production readiness tests."""
     try:
         # Test basic imports
-        import fastapi
-        import uvicorn
-        import gunicorn
-        import sqlalchemy
-        import asyncpg
-        import redis
-        import psutil
-        print("  ✅ All critical dependencies available")
-        
+
         # Test application import
-        sys.path.append('.')
-        from app.main import app
-        print("  ✅ FastAPI application imports successfully")
-        
+        sys.path.append(".")
+
         # Test configuration
         from app.core.config import get_settings
-        settings = get_settings()
-        print("  ✅ Configuration loads successfully")
-        
-        print("  🎉 Basic production readiness tests passed!")
+
+        get_settings()
+
         return True
-        
-    except Exception as e:
-        print(f"  ❌ Production test failed: {e}")
+
+    except Exception:
         return False
 
-def main():
-    """Main function to apply all production fixes"""
-    print("🚀 APPLYING CRITICAL PRODUCTION FIXES")
-    print("=" * 60)
-    
+
+def main() -> None:
+    """Main function to apply all production fixes."""
     fixes = [
         ("Sentry Integration", setup_sentry_integration),
         ("Enhanced Logging", setup_enhanced_logging),
@@ -631,41 +573,26 @@ def main():
         ("Health Monitoring", setup_health_monitoring),
         ("Environment Template", setup_environment_template),
     ]
-    
+
     applied_fixes = 0
-    for fix_name, fix_function in fixes:
+    for _fix_name, fix_function in fixes:
         try:
-            print(f"\n📋 {fix_name}")
-            print("-" * 40)
             fix_function()
             applied_fixes += 1
-            print(f"✅ {fix_name} completed successfully")
-        except Exception as e:
-            print(f"❌ {fix_name} failed: {e}")
-    
-    print("\n" + "=" * 60)
-    print("📊 PRODUCTION FIXES SUMMARY")
-    print("=" * 60)
-    print(f"Applied: {applied_fixes}/{len(fixes)} fixes")
-    
+        except Exception:
+            pass
+
+
     if applied_fixes == len(fixes):
-        print("\n🎉 ALL CRITICAL FIXES APPLIED SUCCESSFULLY!")
-        
+
         # Run basic tests
-        print("\n🧪 TESTING PRODUCTION READINESS...")
         if run_production_tests():
-            print("\n✅ SYSTEM IS READY FOR PRODUCTION DEPLOYMENT!")
-            print("\n📝 NEXT STEPS:")
-            print("1. Install dependencies: pip install -r requirements.txt")
-            print("2. Configure environment: cp .env.production.template .env.production")
-            print("3. Set up Sentry: Add SENTRY_DSN to environment")
-            print("4. Set up backups: Install systemd services")
-            print("5. Run comprehensive tests: python tests/production/test_critical_flows.py")
-            print("6. Deploy with: ./production_configs/scripts/deploy.sh")
+            pass
         else:
-            print("\n⚠️ Some tests failed. Review before deployment.")
+            pass
     else:
-        print(f"\n⚠️ Only {applied_fixes}/{len(fixes)} fixes applied. Review errors above.")
+        pass
+
 
 if __name__ == "__main__":
-    main() 
+    main()

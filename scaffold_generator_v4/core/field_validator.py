@@ -1,203 +1,212 @@
-"""
-Field validation and processing for scaffold generator
-"""
+"""Field validation and processing for scaffold generator."""
+
 import re
-from typing import Dict, Any, List
+from typing import Any
 
 
 class FieldValidator:
-    """Handles validation and processing of field definitions"""
-    
-    def __init__(self):
+    """Handles validation and processing of field definitions."""
+
+    def __init__(self) -> None:
         self.type_mapping = {
-            'str': 'str',
-            'string': 'str', 
-            'text': 'str',
-            'int': 'int',
-            'integer': 'int',
-            'float': 'float',
-            'decimal': 'float',
-            'bool': 'bool',
-            'boolean': 'bool',
-            'date': 'date',
-            'datetime': 'datetime',
-            'email': 'EmailStr',
-            'url': 'HttpUrl',
-            'uuid': 'UUID',
-            'json': 'Dict[str, Any]'
+            "str": "str",
+            "string": "str",
+            "text": "str",
+            "int": "int",
+            "integer": "int",
+            "float": "float",
+            "decimal": "float",
+            "bool": "bool",
+            "boolean": "bool",
+            "date": "date",
+            "datetime": "datetime",
+            "email": "EmailStr",
+            "url": "HttpUrl",
+            "uuid": "UUID",
+            "json": "Dict[str, Any]",
         }
-        
+
         self.sqlalchemy_mapping = {
-            'str': 'String(255)',
-            'text': 'Text',
-            'int': 'Integer',
-            'float': 'Float',
-            'decimal': 'Numeric',
-            'bool': 'Boolean',
-            'date': 'Date',
-            'datetime': 'DateTime',
-            'email': 'String(255)',
-            'url': 'String(500)',
-            'uuid': 'String(36)',
-            'json': 'JSON'
+            "str": "String(255)",
+            "text": "Text",
+            "int": "Integer",
+            "float": "Float",
+            "decimal": "Numeric",
+            "bool": "Boolean",
+            "date": "Date",
+            "datetime": "DateTime",
+            "email": "String(255)",
+            "url": "String(500)",
+            "uuid": "String(36)",
+            "json": "JSON",
         }
-    
-    def validate_field_definition(self, field_def: str) -> Dict[str, Any]:
+
+    def validate_field_definition(self, field_def: str) -> dict[str, Any]:
+        """Validate and parse field definition.
+        Format: name:type[:constraint1:constraint2].
         """
-        Validate and parse field definition.
-        Format: name:type[:constraint1:constraint2]
-        """
-        parts = field_def.split(':')
+        parts = field_def.split(":")
         if len(parts) < 2:
-            raise ValueError(f"Invalid field definition: {field_def}. Expected format: name:type[:constraints]")
-        
+            msg = f"Invalid field definition: {field_def}. Expected format: name:type[:constraints]"
+            raise ValueError(
+                msg,
+            )
+
         field_name = parts[0].strip()
         field_type = parts[1].strip()
         constraints = []
-        
+
         # Handle complex constraints like precision=10,scale=2
         for part in parts[2:]:
-            if ',' in part and ('precision=' in part or 'scale=' in part):
+            if "," in part and ("precision=" in part or "scale=" in part):
                 # Split precision=10,scale=2 into separate constraints
-                sub_constraints = part.split(',')
+                sub_constraints = part.split(",")
                 constraints.extend([c.strip() for c in sub_constraints])
             else:
                 constraints.append(part.strip())
-        
+
         # Validate field name
-        if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', field_name):
-            raise ValueError(f"Invalid field name: {field_name}. Must be a valid Python identifier.")
-        
+        if not re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", field_name):
+            msg = f"Invalid field name: {field_name}. Must be a valid Python identifier."
+            raise ValueError(
+                msg,
+            )
+
         if field_type not in self.type_mapping:
-            raise ValueError(f"Unsupported field type: {field_type}. Supported types: {list(self.type_mapping.keys())}")
-        
+            msg = f"Unsupported field type: {field_type}. Supported types: {list(self.type_mapping.keys())}"
+            raise ValueError(
+                msg,
+            )
+
         return {
-            'name': field_name,
-            'type': field_type,
-            'python_type': self.type_mapping[field_type],
-            'constraints': constraints
+            "name": field_name,
+            "type": field_type,
+            "python_type": self.type_mapping[field_type],
+            "constraints": constraints,
         }
-    
-    def validate_fields_batch(self, field_definitions: List[str]) -> List[Dict[str, Any]]:
-        """Validate multiple field definitions"""
+
+    def validate_fields_batch(
+        self, field_definitions: list[str],
+    ) -> list[dict[str, Any]]:
+        """Validate multiple field definitions."""
         validated_fields = []
         for field_def in field_definitions:
             validated_field = self.validate_field_definition(field_def)
             validated_fields.append(validated_field)
         return validated_fields
-    
-    def get_sqlalchemy_column(self, field: Dict[str, Any]) -> str:
-        """Generate SQLAlchemy column definition"""
-        field_name = field['name']
-        field_type = field['type']
-        constraints = field['constraints']
-        
-        column_type = self.sqlalchemy_mapping.get(field_type, 'String(255)')
-        
+
+    def get_sqlalchemy_column(self, field: dict[str, Any]) -> str:
+        """Generate SQLAlchemy column definition."""
+        field_name = field["name"]
+        field_type = field["type"]
+        constraints = field["constraints"]
+
+        column_type = self.sqlalchemy_mapping.get(field_type, "String(255)")
+
         # Handle constraints
         column_args = []
         for constraint in constraints:
-            if constraint.startswith('max_length='):
-                length = constraint.split('=')[1]
-                if field_type in ['str', 'email', 'url']:
-                    column_type = f'String({length})'
-            elif constraint.startswith('precision='):
-                if field_type == 'decimal':
-                    precision = constraint.split('=')[1]
+            if constraint.startswith("max_length="):
+                length = constraint.split("=")[1]
+                if field_type in ["str", "email", "url"]:
+                    column_type = f"String({length})"
+            elif constraint.startswith("precision="):
+                if field_type == "decimal":
+                    precision = constraint.split("=")[1]
                     # Look for scale in other constraints
                     scale = None
                     for other_constraint in constraints:
-                        if other_constraint.startswith('scale='):
-                            scale = other_constraint.split('=')[1]
+                        if other_constraint.startswith("scale="):
+                            scale = other_constraint.split("=")[1]
                             break
                     if scale:
-                        column_type = f'Numeric({precision}, {scale})'
+                        column_type = f"Numeric({precision}, {scale})"
                     else:
-                        column_type = f'Numeric({precision})'
-            elif constraint == 'unique':
-                column_args.append('unique=True')
-            elif constraint == 'indexed':
-                column_args.append('index=True')
-            elif constraint.startswith('default='):
-                default_val = constraint.split('=')[1]
-                if field_type == 'bool':
-                    column_args.append(f'default={default_val}')
-                elif field_type in ['str', 'email', 'url', 'text']:
+                        column_type = f"Numeric({precision})"
+            elif constraint == "unique":
+                column_args.append("unique=True")
+            elif constraint == "indexed":
+                column_args.append("index=True")
+            elif constraint.startswith("default="):
+                default_val = constraint.split("=")[1]
+                if field_type == "bool":
+                    column_args.append(f"default={default_val}")
+                elif field_type in ["str", "email", "url", "text"]:
                     column_args.append(f'default="{default_val}"')
                 else:
-                    column_args.append(f'default={default_val}')
-        
+                    column_args.append(f"default={default_val}")
+
         # Add nullable=False by default
-        column_args.append('nullable=False')
-        
-        args_str = ', '.join(column_args)
+        column_args.append("nullable=False")
+
+        args_str = ", ".join(column_args)
         if args_str:
             return f"    {field_name} = Column({column_type}, {args_str})"
-        else:
-            return f"    {field_name} = Column({column_type})"
-    
-    def get_pydantic_field(self, field: Dict[str, Any], for_update: bool = False) -> str:
-        """Generate Pydantic field definition"""
-        field_name = field['name']
-        python_type = field['python_type']
-        constraints = field['constraints']
-        
+        return f"    {field_name} = Column({column_type})"
+
+    def get_pydantic_field(
+        self, field: dict[str, Any], for_update: bool = False,
+    ) -> str:
+        """Generate Pydantic field definition."""
+        field_name = field["name"]
+        python_type = field["python_type"]
+        constraints = field["constraints"]
+
         # Handle constraints for Pydantic Field
         field_constraints = []
         for constraint in constraints:
-            if constraint.startswith('max_length='):
-                length = constraint.split('=')[1]
-                field_constraints.append(f'max_length={length}')
-            elif constraint.startswith('min_length='):
-                length = constraint.split('=')[1]
-                field_constraints.append(f'min_length={length}')
-            elif constraint.startswith('ge='):
-                val = constraint.split('=')[1]
-                field_constraints.append(f'ge={val}')
-            elif constraint.startswith('le='):
-                val = constraint.split('=')[1]
-                field_constraints.append(f'le={val}')
-            elif constraint.startswith('gt='):
-                val = constraint.split('=')[1]
-                field_constraints.append(f'gt={val}')
-            elif constraint.startswith('lt='):
-                val = constraint.split('=')[1]
-                field_constraints.append(f'lt={val}')
-        
+            if constraint.startswith("max_length="):
+                length = constraint.split("=")[1]
+                field_constraints.append(f"max_length={length}")
+            elif constraint.startswith("min_length="):
+                length = constraint.split("=")[1]
+                field_constraints.append(f"min_length={length}")
+            elif constraint.startswith("ge="):
+                val = constraint.split("=")[1]
+                field_constraints.append(f"ge={val}")
+            elif constraint.startswith("le="):
+                val = constraint.split("=")[1]
+                field_constraints.append(f"le={val}")
+            elif constraint.startswith("gt="):
+                val = constraint.split("=")[1]
+                field_constraints.append(f"gt={val}")
+            elif constraint.startswith("lt="):
+                val = constraint.split("=")[1]
+                field_constraints.append(f"lt={val}")
+
         if for_update:
             # For update schemas, make fields optional
             if field_constraints:
-                constraints_str = ', '.join(field_constraints)
+                constraints_str = ", ".join(field_constraints)
                 return f"    {field_name}: Optional[{python_type}] = Field(None, {constraints_str})"
-            else:
-                return f"    {field_name}: Optional[{python_type}] = None"
-        else:
-            # For create schemas, keep fields required
-            if field_constraints:
-                constraints_str = ', '.join(field_constraints)
-                return f"    {field_name}: {python_type} = Field(..., {constraints_str})"
-            else:
-                return f"    {field_name}: {python_type}"
-    
-    def get_required_imports(self, fields: List[Dict[str, Any]]) -> Dict[str, List[str]]:
-        """Get required imports based on field types"""
+            return f"    {field_name}: Optional[{python_type}] = None"
+        # For create schemas, keep fields required
+        if field_constraints:
+            constraints_str = ", ".join(field_constraints)
+            return (
+                f"    {field_name}: {python_type} = Field(..., {constraints_str})"
+            )
+        return f"    {field_name}: {python_type}"
+
+    def get_required_imports(
+        self, fields: list[dict[str, Any]],
+    ) -> dict[str, list[str]]:
+        """Get required imports based on field types."""
         pydantic_imports = set()
-        
+
         for field in fields:
-            if field['python_type'] == 'EmailStr':
-                pydantic_imports.add('EmailStr')
-            elif field['python_type'] == 'HttpUrl':
-                pydantic_imports.add('HttpUrl')
-            elif field['python_type'] == 'UUID':
-                pydantic_imports.add('UUID')
-            elif field['python_type'] == 'datetime':
-                pydantic_imports.add('datetime')
-            elif field['python_type'] == 'date':
-                pydantic_imports.add('date')
-            elif field['python_type'] == 'Dict[str, Any]':
-                pydantic_imports.add('Dict')
-                pydantic_imports.add('Any')
-        
-        return {
-            'pydantic': list(pydantic_imports)
-        } 
+            if field["python_type"] == "EmailStr":
+                pydantic_imports.add("EmailStr")
+            elif field["python_type"] == "HttpUrl":
+                pydantic_imports.add("HttpUrl")
+            elif field["python_type"] == "UUID":
+                pydantic_imports.add("UUID")
+            elif field["python_type"] == "datetime":
+                pydantic_imports.add("datetime")
+            elif field["python_type"] == "date":
+                pydantic_imports.add("date")
+            elif field["python_type"] == "Dict[str, Any]":
+                pydantic_imports.add("Dict")
+                pydantic_imports.add("Any")
+
+        return {"pydantic": list(pydantic_imports)}

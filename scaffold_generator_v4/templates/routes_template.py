@@ -1,22 +1,23 @@
-"""
-FastAPI routes template generator
-"""
-from typing import List, Dict, Any
+"""FastAPI routes template generator."""
+
 import re
+from typing import Any
 
 
 class RoutesTemplate:
-    """Generates FastAPI routes templates"""
-    
-    def generate(self, model_name: str, fields: List[Dict[str, Any]], with_bulk: bool = False) -> str:
-        """Generate FastAPI routes file content"""
-        snake_name = re.sub(r'(?<!^)(?=[A-Z])', '_', model_name).lower()
+    """Generates FastAPI routes templates."""
+
+    def generate(
+        self, model_name: str, fields: list[dict[str, Any]], with_bulk: bool = False,
+    ) -> str:
+        """Generate FastAPI routes file content."""
+        snake_name = re.sub(r"(?<!^)(?=[A-Z])", "_", model_name).lower()
         pascal_name = model_name
-        
+
         bulk_routes = ""
         if with_bulk:
             bulk_routes = f"""
-        
+
         @self.router.post("/{snake_name}s/bulk", response_model=List[{pascal_name}Response], tags=["{pascal_name}"])
         async def create_bulk_{snake_name}s(items: List[{pascal_name}Create]):
             \"\"\"Create multiple {snake_name}s\"\"\"
@@ -26,7 +27,7 @@ class RoutesTemplate:
                 return results
             except Exception as e:
                 raise HTTPException(status_code=400, detail=str(e))
-        
+
         @self.router.put("/{snake_name}s/bulk", response_model=List[{pascal_name}Response], tags=["{pascal_name}"])
         async def update_bulk_{snake_name}s(updates: List[{pascal_name}Update]):
             \"\"\"Update multiple {snake_name}s\"\"\"
@@ -36,16 +37,16 @@ class RoutesTemplate:
                 return results
             except Exception as e:
                 raise HTTPException(status_code=400, detail=str(e))"""
-        
-        template = f'''"""
+
+        return f'''"""
 {pascal_name} FastAPI routes
 """
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from .schemas import (
-    {pascal_name}Create, 
-    {pascal_name}Update, 
+    {pascal_name}Create,
+    {pascal_name}Update,
     {pascal_name}Response,
     {pascal_name}Search
 )
@@ -54,30 +55,30 @@ from .services import {pascal_name}Service
 
 class {pascal_name}Routes:
     """FastAPI routes for {pascal_name}"""
-    
+
     def __init__(self):
         self.router = APIRouter()
         self.service = {pascal_name}Service()
         self.setup_routes()
-    
+
     def setup_routes(self):
         """Setup CRUD routes for {pascal_name}"""
-        
+
         @self.router.post("/{snake_name}s/", response_model={pascal_name}Response, tags=["{pascal_name}"])
         async def create_{snake_name}(item: {pascal_name}Create):
             \"\"\"Create a new {snake_name}\"\"\"
             try:
                 result = await self.service.create(**item.dict())
-                
+
                 # Emit creation event
-                self.emit_event("{snake_name}_created", 
-                              id=result.id, 
+                self.emit_event("{snake_name}_created",
+                              id=result.id,
                               plugin="{snake_name}_plugin")
-                
+
                 return result
             except Exception as e:
                 raise HTTPException(status_code=400, detail=str(e))
-        
+
         @self.router.get("/{snake_name}s/", response_model=List[{pascal_name}Response], tags=["{pascal_name}"])
         async def get_{snake_name}s(
             skip: int = Query(0, ge=0),
@@ -89,7 +90,7 @@ class {pascal_name}Routes:
                 return results
             except Exception as e:
                 raise HTTPException(status_code=400, detail=str(e))
-        
+
         @self.router.get("/{snake_name}s/{{item_id}}", response_model={pascal_name}Response, tags=["{pascal_name}"])
         async def get_{snake_name}(item_id: int):
             \"\"\"Get a specific {snake_name} by ID\"\"\"
@@ -102,7 +103,7 @@ class {pascal_name}Routes:
                 raise
             except Exception as e:
                 raise HTTPException(status_code=400, detail=str(e))
-        
+
         @self.router.put("/{snake_name}s/{{item_id}}", response_model={pascal_name}Response, tags=["{pascal_name}"])
         async def update_{snake_name}(item_id: int, item: {pascal_name}Update):
             \"\"\"Update a {snake_name}\"\"\"
@@ -115,7 +116,7 @@ class {pascal_name}Routes:
                 raise
             except Exception as e:
                 raise HTTPException(status_code=400, detail=str(e))
-        
+
         @self.router.delete("/{snake_name}s/{{item_id}}", tags=["{pascal_name}"])
         async def delete_{snake_name}(item_id: int):
             \"\"\"Delete a {snake_name}\"\"\"
@@ -128,7 +129,7 @@ class {pascal_name}Routes:
                 raise
             except Exception as e:
                 raise HTTPException(status_code=400, detail=str(e))
-        
+
         @self.router.get("/{snake_name}s/search/", response_model=List[{pascal_name}Response], tags=["{pascal_name}"])
         async def search_{snake_name}s(
             q: str = Query(..., min_length=1),
@@ -140,11 +141,11 @@ class {pascal_name}Routes:
                 return results
             except Exception as e:
                 raise HTTPException(status_code=400, detail=str(e)){bulk_routes}
-    
+
     def get_router(self) -> APIRouter:
         \"\"\"Get the FastAPI router\"\"\"
         return self.router
-    
+
     def emit_event(self, event_name: str, **kwargs):
         \"\"\"Emit plugin events for monitoring and integration\"\"\"
         try:
@@ -160,5 +161,4 @@ class {pascal_name}Routes:
             # Don't let event emission break the main functionality
             print(f"⚠️ Event emission failed: {{e}}")
 '''
-        
-        return template 
+

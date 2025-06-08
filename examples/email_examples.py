@@ -1,5 +1,4 @@
-"""
-AWS SES Email Utility Usage Examples
+"""AWS SES Email Utility Usage Examples.
 
 This file demonstrates various ways to use the comprehensive AWS SES email utility
 with different scenarios and features.
@@ -10,24 +9,22 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from app.core.aws_ses_utility import (
-    SESEmailUtility,
-    EmailRequest,
-    EmailRecipient,
-    EmailTemplate,
     EmailAttachment,
+    EmailRecipient,
+    EmailRequest,
+    EmailTemplate,
+    SESEmailUtility,
     create_ses_utility,
+    send_password_reset_email,
     send_welcome_email,
-    send_password_reset_email
 )
 
 
-async def example_1_simple_email():
-    """Example 1: Send a simple email to one recipient"""
-    print("📧 Example 1: Simple Email")
-    
+async def example_1_simple_email() -> None:
+    """Example 1: Send a simple email to one recipient."""
     # Create SES utility
     ses_utility = create_ses_utility()
-    
+
     # Create email request
     email_request = EmailRequest(
         to_recipients=[EmailRecipient(email="user@example.com", name="John Doe")],
@@ -42,48 +39,38 @@ async def example_1_simple_email():
         </body>
         </html>
         """,
-        text_content="Welcome! Thank you for joining our app."
+        text_content="Welcome! Thank you for joining our app.",
     )
-    
+
     # Send email
-    response = await ses_utility.send_email(email_request)
-    print(f"✅ Email sent: {response.success}, Tracking ID: {response.tracking_id}")
+    await ses_utility.send_email(email_request)
 
 
-async def example_2_multiple_recipients():
-    """Example 2: Send email to multiple recipients with CC and BCC"""
-    print("\n📧 Example 2: Multiple Recipients")
-    
+async def example_2_multiple_recipients() -> None:
+    """Example 2: Send email to multiple recipients with CC and BCC."""
     ses_utility = create_ses_utility()
-    
+
     email_request = EmailRequest(
         to_recipients=[
             EmailRecipient(email="user1@example.com", name="John Doe"),
-            EmailRecipient(email="user2@example.com", name="Jane Smith")
+            EmailRecipient(email="user2@example.com", name="Jane Smith"),
         ],
-        cc_recipients=[
-            EmailRecipient(email="manager@example.com", name="Manager")
-        ],
-        bcc_recipients=[
-            EmailRecipient(email="admin@yourapp.com", name="Admin")
-        ],
+        cc_recipients=[EmailRecipient(email="manager@example.com", name="Manager")],
+        bcc_recipients=[EmailRecipient(email="admin@yourapp.com", name="Admin")],
         from_email="noreply@yourapp.com",
         from_name="Your App",
         subject="Team Update",
         html_content="<h1>Team Update</h1><p>Important news for the team.</p>",
-        message_tags={"type": "team_update", "priority": "high"}
+        message_tags={"type": "team_update", "priority": "high"},
     )
-    
-    response = await ses_utility.send_email(email_request)
-    print(f"✅ Multi-recipient email sent: {response.success}")
+
+    await ses_utility.send_email(email_request)
 
 
-async def example_3_template_email():
-    """Example 3: Send email using Jinja2 templates"""
-    print("\n📧 Example 3: Template Email")
-    
+async def example_3_template_email() -> None:
+    """Example 3: Send email using Jinja2 templates."""
     ses_utility = create_ses_utility()
-    
+
     # Create template
     template = EmailTemplate(
         subject="Welcome {{ user_name }} to {{ app_name }}!",
@@ -98,7 +85,7 @@ async def example_3_template_email():
                 <li>Plan: {{ subscription_plan }}</li>
                 <li>Trial ends: {{ trial_end_date }}</li>
             </ul>
-            <a href="{{ app_url }}" style="background-color: #007bff; color: white; 
+            <a href="{{ app_url }}" style="background-color: #007bff; color: white;
                padding: 10px 20px; text-decoration: none; border-radius: 5px;">
                 Get Started
             </a>
@@ -107,18 +94,18 @@ async def example_3_template_email():
         """,
         text_content="""
         Welcome {{ user_name }}!
-        
+
         Thank you for joining {{ app_name }}.
-        
+
         Your account details:
         - Username: {{ username }}
         - Plan: {{ subscription_plan }}
         - Trial ends: {{ trial_end_date }}
-        
+
         Get started: {{ app_url }}
-        """
+        """,
     )
-    
+
     # Context data for template
     template_context = {
         "user_name": "John Doe",
@@ -126,54 +113,49 @@ async def example_3_template_email():
         "username": "johndoe",
         "subscription_plan": "Pro",
         "trial_end_date": "December 31, 2024",
-        "app_url": "https://yourapp.com/dashboard"
+        "app_url": "https://yourapp.com/dashboard",
     }
-    
+
     email_request = EmailRequest(
         to_recipients=[EmailRecipient(email="user@example.com", name="John Doe")],
         from_email="noreply@yourapp.com",
         from_name="Amazing SaaS",
         template=template,
         template_context=template_context,
-        message_tags={"type": "onboarding", "user_type": "trial"}
+        message_tags={"type": "onboarding", "user_type": "trial"},
     )
-    
-    response = await ses_utility.send_email(email_request)
-    print(f"✅ Template email sent: {response.success}")
+
+    await ses_utility.send_email(email_request)
 
 
-async def example_4_email_with_attachments():
-    """Example 4: Send email with file attachments"""
-    print("\n📧 Example 4: Email with Attachments")
-    
+async def example_4_email_with_attachments() -> None:
+    """Example 4: Send email with file attachments."""
     ses_utility = create_ses_utility()
-    
+
     # Create attachments
     attachments = [
         # PDF attachment
         EmailAttachment(
             filename="welcome_guide.pdf",
             content=b"PDF content here...",  # In real usage, read from file
-            content_type="application/pdf"
+            content_type="application/pdf",
         ),
-        
         # Image attachment (inline)
         EmailAttachment(
             filename="logo.png",
             content=b"PNG image data...",  # In real usage, read from file
             content_type="image/png",
             disposition="inline",
-            content_id="logo"
+            content_id="logo",
         ),
-        
         # Excel attachment
         EmailAttachment(
             filename="data_export.xlsx",
             content=b"Excel file data...",  # In real usage, read from file
-            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        ),
     ]
-    
+
     email_request = EmailRequest(
         to_recipients=[EmailRecipient(email="user@example.com", name="John Doe")],
         from_email="noreply@yourapp.com",
@@ -190,23 +172,20 @@ async def example_4_email_with_attachments():
         </html>
         """,
         attachments=attachments,
-        message_tags={"type": "document_delivery"}
+        message_tags={"type": "document_delivery"},
     )
-    
-    response = await ses_utility.send_email(email_request)
-    print(f"✅ Email with attachments sent: {response.success}")
+
+    await ses_utility.send_email(email_request)
 
 
-async def example_5_scheduled_email():
-    """Example 5: Schedule email for later sending"""
-    print("\n📧 Example 5: Scheduled Email")
-    
+async def example_5_scheduled_email() -> None:
+    """Example 5: Schedule email for later sending."""
     # Note: This requires Procrastinate to be configured
     ses_utility = create_ses_utility()
-    
+
     # Schedule email for 1 hour from now
     send_time = datetime.utcnow() + timedelta(hours=1)
-    
+
     email_request = EmailRequest(
         to_recipients=[EmailRecipient(email="user@example.com", name="John Doe")],
         from_email="noreply@yourapp.com",
@@ -214,20 +193,17 @@ async def example_5_scheduled_email():
         subject="Scheduled Reminder",
         html_content="<h1>This is your scheduled reminder!</h1>",
         send_time=send_time,
-        message_tags={"type": "reminder", "scheduled": "true"}
+        message_tags={"type": "reminder", "scheduled": "true"},
     )
-    
+
     # Send with immediate=False to schedule
-    response = await ses_utility.send_email(email_request, immediate=False)
-    print(f"✅ Email scheduled: {response.success}, Status: {response.delivery_status}")
+    await ses_utility.send_email(email_request, immediate=False)
 
 
-async def example_6_bulk_template_email():
-    """Example 6: Send bulk emails using SES templates"""
-    print("\n📧 Example 6: Bulk Template Email")
-    
+async def example_6_bulk_template_email() -> None:
+    """Example 6: Send bulk emails using SES templates."""
     ses_utility = create_ses_utility()
-    
+
     # First, create a template in SES (this is a one-time setup)
     template_created = await ses_utility.create_template(
         template_name="newsletter_template",
@@ -244,146 +220,124 @@ async def example_6_bulk_template_email():
         """,
         text_content="""
         {{title}}
-        
+
         Hello {{name}},
-        
+
         {{content}}
-        
+
         Best regards,
         {{sender_name}}
-        """
+        """,
     )
-    
+
     if template_created:
-        print("📝 Template created successfully")
-        
+
         # Send bulk emails using the template
-        recipients = [
-            "user1@example.com",
-            "user2@example.com",
-            "user3@example.com"
-        ]
-        
+        recipients = ["user1@example.com", "user2@example.com", "user3@example.com"]
+
         template_data = {
             "subject": "Monthly Newsletter",
             "title": "Monthly Update",
             "content": "Here's what happened this month...",
             "sender_name": "Your Team",
-            "name": "Valued Customer"
+            "name": "Valued Customer",
         }
-        
-        response = await ses_utility.send_template_email(
+
+        await ses_utility.send_template_email(
             to_recipients=recipients,
             template_name="newsletter_template",
             template_data=template_data,
             from_email="newsletter@yourapp.com",
-            from_name="Your App Newsletter"
+            from_name="Your App Newsletter",
         )
-        
-        print(f"✅ Bulk template email sent: {response.success}")
 
 
-async def example_7_helper_functions():
-    """Example 7: Use built-in helper functions"""
-    print("\n📧 Example 7: Helper Functions")
-    
+
+async def example_7_helper_functions() -> None:
+    """Example 7: Use built-in helper functions."""
     # Send welcome email
-    response1 = await send_welcome_email(
+    await send_welcome_email(
         user_email="newuser@example.com",
         user_name="New User",
-        verification_token="abc123token"
+        verification_token="abc123token",
     )
-    print(f"✅ Welcome email sent: {response1.success}")
-    
+
     # Send password reset email
-    response2 = await send_password_reset_email(
-        user_email="user@example.com",
-        user_name="John Doe",
-        reset_token="xyz789token"
+    await send_password_reset_email(
+        user_email="user@example.com", user_name="John Doe", reset_token="xyz789token",
     )
-    print(f"✅ Password reset email sent: {response2.success}")
 
 
-async def example_8_error_handling():
-    """Example 8: Error handling and logging"""
-    print("\n📧 Example 8: Error Handling")
-    
+async def example_8_error_handling() -> None:
+    """Example 8: Error handling and logging."""
     ses_utility = create_ses_utility()
-    
+
     # Example with invalid email
     email_request = EmailRequest(
         to_recipients=[EmailRecipient(email="invalid-email", name="Test User")],
         from_email="noreply@yourapp.com",
         subject="Test Email",
-        html_content="<p>Test content</p>"
+        html_content="<p>Test content</p>",
     )
-    
+
     response = await ses_utility.send_email(email_request)
-    
+
     if not response.success:
-        print(f"❌ Email failed: {response.error_message}")
-        print(f"🔍 Error code: {response.error_code}")
-        print(f"📊 Tracking ID: {response.tracking_id}")
+        pass
     else:
-        print(f"✅ Email sent successfully: {response.tracking_id}")
+        pass
 
 
-async def example_9_advanced_configuration():
-    """Example 9: Advanced SES configuration"""
-    print("\n📧 Example 9: Advanced Configuration")
-    
+async def example_9_advanced_configuration() -> None:
+    """Example 9: Advanced SES configuration."""
     # Create SES utility with custom configuration
     ses_utility = SESEmailUtility(
         aws_region="us-west-2",
         configuration_set="my-config-set",
-        from_domain="yourapp.com"
+        from_domain="yourapp.com",
     )
-    
+
     # Get account information
     account_info = await ses_utility.get_account_info()
     if account_info:
-        print(f"📊 SES Account Info: {account_info}")
-    
+        pass
+
     # Create configuration set (one-time setup)
-    config_created = await ses_utility.create_configuration_set(
+    await ses_utility.create_configuration_set(
         name="my-config-set",
-        tracking_options={"CustomRedirectDomain": "track.yourapp.com"}
+        tracking_options={"CustomRedirectDomain": "track.yourapp.com"},
     )
-    print(f"⚙️ Configuration set created: {config_created}")
-    
+
     # Verify domain (one-time setup)
-    domain_verified = await ses_utility.verify_domain_identity("yourapp.com")
-    print(f"🔐 Domain verification initiated: {domain_verified}")
+    await ses_utility.verify_domain_identity("yourapp.com")
 
 
-async def example_10_read_file_attachments():
-    """Example 10: Read real files as attachments"""
-    print("\n📧 Example 10: Real File Attachments")
-    
+async def example_10_read_file_attachments() -> None:
+    """Example 10: Read real files as attachments."""
     ses_utility = create_ses_utility()
-    
+
     attachments = []
-    
+
     # Example: Read a real file as attachment
     # Note: Replace with actual file paths in your application
     sample_files = [
         ("sample.txt", "text/plain"),
         ("sample.pdf", "application/pdf"),
-        ("sample.jpg", "image/jpeg")
+        ("sample.jpg", "image/jpeg"),
     ]
-    
+
     for filename, content_type in sample_files:
         file_path = Path(f"examples/sample_files/{filename}")
         if file_path.exists():
             with open(file_path, "rb") as f:
                 content = f.read()
-            
-            attachments.append(EmailAttachment(
-                filename=filename,
-                content=content,
-                content_type=content_type
-            ))
-    
+
+            attachments.append(
+                EmailAttachment(
+                    filename=filename, content=content, content_type=content_type,
+                ),
+            )
+
     if attachments:
         email_request = EmailRequest(
             to_recipients=[EmailRecipient(email="user@example.com", name="John Doe")],
@@ -391,19 +345,16 @@ async def example_10_read_file_attachments():
             from_name="Your App",
             subject="Files from real filesystem",
             html_content="<h1>Your files are attached!</h1>",
-            attachments=attachments
+            attachments=attachments,
         )
-        
-        response = await ses_utility.send_email(email_request)
-        print(f"✅ Email with real file attachments sent: {response.success}")
+
+        await ses_utility.send_email(email_request)
     else:
-        print("ℹ️ No sample files found, skipping real file attachment example")
+        pass
 
 
-async def main():
-    """Run all examples"""
-    print("🚀 AWS SES Email Utility Examples\n" + "="*50)
-    
+async def main() -> None:
+    """Run all examples."""
     try:
         await example_1_simple_email()
         await example_2_multiple_recipients()
@@ -415,17 +366,12 @@ async def main():
         await example_8_error_handling()
         await example_9_advanced_configuration()
         await example_10_read_file_attachments()
-        
-        print("\n🎉 All examples completed!")
-        
-    except Exception as e:
-        print(f"\n❌ Error running examples: {str(e)}")
-        print("💡 Make sure you have:")
-        print("   - AWS credentials configured")
-        print("   - Verified domain in SES")
-        print("   - Valid email addresses")
+
+
+    except Exception:
+        pass
 
 
 if __name__ == "__main__":
     # Run examples
-    asyncio.run(main()) 
+    asyncio.run(main())

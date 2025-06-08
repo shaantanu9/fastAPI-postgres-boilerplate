@@ -1,5 +1,4 @@
-"""
-Procrastinate Admin Dashboard Integration
+"""Procrastinate Admin Dashboard Integration.
 
 This module integrates the Procrastinate Admin dashboard into the FastAPI application,
 providing a comprehensive task monitoring interface without reinventing the wheel.
@@ -8,10 +7,9 @@ providing a comprehensive task monitoring interface without reinventing the whee
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
 from procrastinate.contrib.fastapi import ProcrastinateAdmin
-from starlette.middleware.cors import CORSMiddleware
 
-from app.utils.procrastinate_manager import procrastinate_app
 from app.core.security.api_key import api_key_security
+from app.utils.procrastinate_manager import procrastinate_app
 
 # Initialize Procrastinate Admin
 admin = ProcrastinateAdmin(procrastinate_app)
@@ -20,39 +18,39 @@ admin = ProcrastinateAdmin(procrastinate_app)
 router = APIRouter(
     prefix="/task-admin",
     tags=["task-monitoring"],
-    dependencies=[Depends(api_key_security)]
+    dependencies=[Depends(api_key_security)],
 )
 
 # Mount the admin routes under /task-admin prefix
 admin.mount_to_router(router)
 
+
 # Add a welcome/landing page for the dashboard
 @router.get("/", response_class=HTMLResponse)
-async def task_admin_index(request: Request):
-    """
-    Task Administration Dashboard landing page.
+async def task_admin_index(request: Request) -> str:
+    """Task Administration Dashboard landing page.
     Provides links to the Procrastinate Admin UI components.
     """
-    return f"""
+    return """
     <!DOCTYPE html>
     <html>
     <head>
         <title>Task Administration Dashboard</title>
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
         <style>
-            body {{
+            body {
                 padding: 2rem;
                 font-family: system-ui, -apple-system, sans-serif;
-            }}
-            .card {{
+            }
+            .card {
                 margin-bottom: 1rem;
                 box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            }}
-            .dashboard-header {{
+            }
+            .dashboard-header {
                 margin-bottom: 2rem;
                 border-bottom: 1px solid #dee2e6;
                 padding-bottom: 1rem;
-            }}
+            }
         </style>
     </head>
     <body>
@@ -61,7 +59,7 @@ async def task_admin_index(request: Request):
                 <h1>Task Administration Dashboard</h1>
                 <p class="text-muted">Integrated Procrastinate Admin interface for task monitoring and management</p>
             </div>
-            
+
             <div class="row">
                 <div class="col-md-6">
                     <div class="card">
@@ -72,7 +70,7 @@ async def task_admin_index(request: Request):
                         </div>
                     </div>
                 </div>
-                
+
                 <div class="col-md-6">
                     <div class="card">
                         <div class="card-body">
@@ -83,7 +81,7 @@ async def task_admin_index(request: Request):
                     </div>
                 </div>
             </div>
-            
+
             <div class="row mt-4">
                 <div class="col-md-6">
                     <div class="card">
@@ -94,7 +92,7 @@ async def task_admin_index(request: Request):
                         </div>
                     </div>
                 </div>
-                
+
                 <div class="col-md-6">
                     <div class="card">
                         <div class="card-body">
@@ -105,7 +103,7 @@ async def task_admin_index(request: Request):
                     </div>
                 </div>
             </div>
-            
+
             <div class="mt-4">
                 <p><strong>Note:</strong> This dashboard is secured with API key authentication. Ensure you have a valid API key.</p>
             </div>

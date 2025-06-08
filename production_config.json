@@ -1,0 +1,27 @@
+{
+  "error_dashboard": {
+    "enabled": true,
+    "retention_days": 30,
+    "alert_thresholds": {
+      "critical_errors_per_minute": 10,
+      "new_error_types_per_hour": 5
+    }
+  },
+  "load_testing": {
+    "enabled": true,
+    "schedule": "0 2 * * 0",
+    "scenarios": [
+      "normal_load",
+      "peak_load"
+    ]
+  },
+  "security_audit": {
+    "enabled": true,
+    "schedule": "0 3 * * *",
+    "tools": [
+      "bandit",
+      "safety",
+      "semgrep"
+    ]
+  }
+}
