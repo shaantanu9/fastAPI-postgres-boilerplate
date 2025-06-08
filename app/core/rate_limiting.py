@@ -577,9 +577,12 @@ async def setup_rate_limiting(app: FastAPI) -> None:
     """
     Set up enhanced rate limiting for the FastAPI application.
     
+    DEPRECATED: This function tries to add middleware during startup which causes warnings.
+    Use initialize_enhanced_rate_limiter() instead for startup initialization.
+    
     This function:
     1. Initializes the enhanced rate limiter with Redis/fallback
-    2. Adds rate limiting middleware
+    2. Adds rate limiting middleware (CAUSES WARNING - should be done during app creation)
     3. Adds exception handlers for rate limiting
     4. Sets up cleanup on shutdown
     
@@ -624,7 +627,8 @@ async def setup_rate_limiting(app: FastAPI) -> None:
         limiter._rate_limit_exceeded_handler = enhanced_rate_limit_exceeded_handler
         app.state.limiter = limiter
         
-        # Add middleware
+        # Add middleware - THIS CAUSES THE WARNING when called during startup
+        from slowapi.middleware import SlowAPIMiddleware
         app.add_middleware(SlowAPIMiddleware)
         
         # Add cleanup on shutdown
@@ -644,6 +648,44 @@ async def setup_rate_limiting(app: FastAPI) -> None:
         if not get_rate_limit_config().enable_fallback:
             raise
         logger.warning("Rate limiting setup failed but fallback is enabled")
+
+async def initialize_enhanced_rate_limiter(config: Optional[RateLimitConfig] = None) -> EnhancedRateLimiter:
+    """
+    Initialize only the enhanced rate limiter (without middleware setup).
+    
+    This function should be called during startup events, while middleware
+    should be added during app creation.
+    
+    Args:
+        config: Rate limiting configuration, uses default if None
+        
+    Returns:
+        The initialized enhanced rate limiter
+        
+    Raises:
+        Exception if initialization fails and fallback is disabled
+    """
+    global _rate_limiter
+    
+    if config is None:
+        config = get_rate_limit_config()
+    
+    try:
+        logger.info(f"Initializing enhanced rate limiter with config: Redis={config.redis_url}, Fallback={config.enable_fallback}")
+        
+        # Initialize enhanced rate limiter
+        _rate_limiter = EnhancedRateLimiter(config)
+        await _rate_limiter.initialize()
+        
+        logger.info("Enhanced rate limiting initialized successfully")
+        return _rate_limiter
+        
+    except Exception as e:
+        logger.error(f"Failed to initialize enhanced rate limiting: {e}")
+        if not config.enable_fallback:
+            raise
+        logger.warning("Enhanced rate limiting failed, fallback available")
+        raise
 
 def get_rate_limiter() -> Optional[EnhancedRateLimiter]:
     """

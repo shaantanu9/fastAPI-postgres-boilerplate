@@ -272,7 +272,7 @@ class EnterpriseSecurityService:
     def log_security_event(self, db: Session, user, event_type: str,
                           category: str, data: Dict[str, Any], request: Request):
         """Log security events for audit trail"""
-        from app.db.models.user import SecurityEvent
+        from app.db.models.security import SecurityEvent
 
         event = SecurityEvent(
             user_id=user.id if user else None,
@@ -341,9 +341,17 @@ class EnterpriseSecurityService:
         try:
             # Enhanced security event logging using existing method
             self.log_security_event(db, user, event_type, category, data, request)
-        except Exception as e:
+                except Exception as e:
             print(f"⚠️ Failed to log security event: {e}")
+    
+    def init_app(self, app):
+        """Initialize the security service with the FastAPI app"""
+        # Store the app reference for any future use
+        self.app = app
+        
+        # Set up any app-specific security configurations
+        print("🔒 Enterprise Security Service initialized with app")
+
 
 # Initialize service
 security_service = EnterpriseSecurityService()
-

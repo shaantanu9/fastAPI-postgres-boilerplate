@@ -16,6 +16,17 @@ from app.api.v1.endpoints import email_integration
 from app.api.v1.endpoints import rate_limit_test
 from app.api.v1.endpoints.timeout_test import router as timeout_test_router
 
+# Conditionally import procrastinate admin router if the module is available
+try:
+    from app.api.v1.endpoints.procrastinate_admin import router as procrastinate_admin_router
+    PROCRASTINATE_ADMIN_AVAILABLE = True
+except ImportError:
+    PROCRASTINATE_ADMIN_AVAILABLE = False
+    print("Warning: procrastinate.contrib.fastapi module not found. Procrastinate admin dashboard will not be available.")
+
+from app.api.v1.endpoints.feature_flags import router as feature_flags_router
+from app.api.v1.endpoints import notification_preferences
+
 api_router = APIRouter()
 
 # Core authentication and user management
@@ -43,3 +54,17 @@ api_router.include_router(plugins.router, prefix="/system", tags=["plugin-manage
 # Include test endpoints with proper prefixes
 api_router.include_router(rate_limit_test.router, prefix="/test/rate-limit", tags=["rate-limit-tests"])
 api_router.include_router(timeout_test_router, prefix="/test/timeout", tags=["timeout-tests"])
+
+# Task monitoring dashboard
+if PROCRASTINATE_ADMIN_AVAILABLE:
+    api_router.include_router(procrastinate_admin_router)
+
+# Feature flag management
+api_router.include_router(feature_flags_router, prefix="/features", tags=["feature-flags"])
+
+# Notification preferences
+api_router.include_router(notification_preferences.router, prefix="/notifications", tags=["notifications"])
+
+# Procrastinate test endpoint
+from app.api.v1.endpoints import procrastinate_test
+api_router.include_router(procrastinate_test.router, prefix="/test-procrastinate", tags=["procrastinate-test"])

@@ -267,11 +267,21 @@ async def performance_test(
     """
     Test endpoint with configurable delay to demonstrate performance monitoring.
     
+    This endpoint artificially delays the response to simulate various processing times.
+    It's useful for testing performance monitoring tools, middleware, and logging systems.
+    
     Features:
     - Request ID tracking
     - Processing time measurement
     - Performance headers in response
     - Request/response logging
+    
+    Args:
+        delay (float): Artificial delay in seconds to simulate processing time.
+               Constrained between 0 and 5 seconds.
+    
+    Returns:
+        dict: Performance metrics including processing time and request details.
     """
     import asyncio
     
@@ -301,11 +311,26 @@ async def compression_test(
     """
     Generate different types of content to test compression effectiveness.
     
+    This endpoint creates various types of content with configurable size to test
+    how well different content types compress with HTTP compression algorithms.
+    Useful for benchmarking and demonstrating the benefits of response compression.
+    
     Content types:
     - json: Structured JSON (compresses well)
     - text: Repetitive text (compresses very well)
     - random: Random data (compresses poorly)
     - structured: Mix of structured and random data
+    
+    Args:
+        content_type (str): Type of content to generate (json, text, random, or structured).
+        size_kb (int): Approximate size of the generated content in kilobytes.
+               Constrained between 1 and 1000 KB.
+    
+    Returns:
+        Response: JSON or text response with the generated content and compression metrics.
+    
+    Raises:
+        HTTPException: If an invalid content type is specified.
     """
     target_size = size_kb * 1024
     
@@ -384,7 +409,15 @@ async def compression_test(
 )
 async def feature_status():
     """
-    Check the availability of advanced features.
+    Check the availability of advanced features in the application.
+    
+    Performs runtime checks for various advanced features by attempting to import
+    their respective modules. This endpoint helps diagnose which features are
+    properly configured and available in the current deployment environment.
+    
+    Returns:
+        dict: Dictionary containing feature availability status and overall system status.
+              Includes boolean flags for each feature and a summary status message.
     """
     try:
         from app.core.middleware import setup_middleware

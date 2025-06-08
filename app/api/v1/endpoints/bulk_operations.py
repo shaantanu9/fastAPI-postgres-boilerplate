@@ -82,11 +82,17 @@ async def bulk_create_users(
     user_service: UserService = Depends(lambda: UserService())
 ):
     """
-    Create multiple users in parallel with validation.
-    
-    - **Parallel validation**: Validates user data using CPU-bound processing
-    - **Batch processing**: Creates users in optimized batches
-    - **Error handling**: Reports individual validation and creation errors
+    Create multiple users in parallel with validation and batch processing.
+
+    Args:
+        request (BulkCreateRequest): The bulk create request payload.
+        background_tasks (BackgroundTasks): FastAPI background tasks handler.
+        db (AsyncSession): Async database session dependency.
+        user_service (UserService): User service for user operations.
+    Returns:
+        BulkOperationResponse: Bulk operation result with success, processed, failed, results, and errors.
+    Raises:
+        HTTPException: If all data fails validation or on server error.
     """
     try:
         start_time = time.time()
@@ -152,11 +158,16 @@ async def bulk_update_users(
     user_service: UserService = Depends(lambda: UserService())
 ):
     """
-    Update multiple users in parallel.
-    
-    - **Parallel processing**: Updates users concurrently
-    - **Password hashing**: Automatically hashes passwords if provided
-    - **Error tracking**: Reports individual update failures
+    Update multiple users in parallel with batch processing and error tracking.
+
+    Args:
+        request (BulkUpdateRequest): The bulk update request payload.
+        db (AsyncSession): Async database session dependency.
+        user_service (UserService): User service for user operations.
+    Returns:
+        BulkOperationResponse: Bulk operation result with success, processed, failed, and results.
+    Raises:
+        HTTPException: On server error or update failures.
     """
     try:
         import time
@@ -187,11 +198,16 @@ async def bulk_delete_users(
     user_service: UserService = Depends(lambda: UserService())
 ):
     """
-    Delete multiple users in parallel.
-    
-    - **Parallel deletion**: Deletes users concurrently
-    - **Batch processing**: Processes deletions in optimized batches
-    - **Success tracking**: Reports number of successful deletions
+    Delete multiple users in parallel with batch processing and success tracking.
+
+    Args:
+        request (BulkDeleteRequest): The bulk delete request payload.
+        db (AsyncSession): Async database session dependency.
+        user_service (UserService): User service for user operations.
+    Returns:
+        BulkOperationResponse: Bulk operation result with success, processed, failed, and results.
+    Raises:
+        HTTPException: On server error or deletion failures.
     """
     try:
         import time
@@ -221,11 +237,16 @@ async def bulk_search_users(
     user_service: UserService = Depends(lambda: UserService())
 ):
     """
-    Execute multiple search queries in parallel.
-    
-    - **Parallel queries**: Executes multiple searches concurrently
-    - **Optimized performance**: Leverages database connection pooling
-    - **Flexible queries**: Supports various search conditions
+    Execute multiple user search queries in parallel with optimized performance.
+
+    Args:
+        request (BulkSearchRequest): The bulk search request payload.
+        db (AsyncSession): Async database session dependency.
+        user_service (UserService): User service for user operations.
+    Returns:
+        BulkOperationResponse: Bulk operation result with search results and statistics.
+    Raises:
+        HTTPException: On server error or search failures.
     """
     try:
         import time
@@ -260,11 +281,18 @@ async def import_users_from_csv(
     user_service: UserService = Depends(lambda: UserService())
 ):
     """
-    Import users from CSV file with parallel processing.
-    
-    - **File validation**: Validates CSV format and headers
-    - **Parallel processing**: Processes CSV rows concurrently
-    - **Background import**: For large files, processes in background
+    Import users from a CSV file with parallel processing and background support.
+
+    Args:
+        file (UploadFile): The CSV file containing user data.
+        background_tasks (BackgroundTasks): FastAPI background tasks handler.
+        batch_size (int): Batch size for processing records in parallel.
+        db (AsyncSession): Async database session dependency.
+        user_service (UserService): User service for user operations.
+    Returns:
+        BulkOperationResponse: Bulk operation result with success, processed, failed, and errors.
+    Raises:
+        HTTPException: If the CSV is invalid or import fails.
     """
     try:
         # Validate file type
@@ -339,11 +367,18 @@ async def export_users_parallel(
     user_service: UserService = Depends(lambda: UserService())
 ):
     """
-    Export users data with parallel processing.
-    
-    - **Parallel export**: Processes user data concurrently
-    - **Multiple formats**: Supports JSON, CSV export
-    - **Filtered export**: Supports query filters
+    Export users data with parallel processing and support for multiple formats.
+
+    Args:
+        format (str): Output format ("json" or "csv").
+        filters (Optional[str]): Query filters for export.
+        background_tasks (BackgroundTasks): FastAPI background tasks handler.
+        db (AsyncSession): Async database session dependency.
+        user_service (UserService): User service for user operations.
+    Returns:
+        FileResponse or StreamingResponse: Exported user data in the requested format.
+    Raises:
+        HTTPException: If export fails or format is invalid.
     """
     try:
         # Parse filters if provided
@@ -396,11 +431,16 @@ async def send_bulk_notifications(
     user_service: UserService = Depends(lambda: UserService())
 ):
     """
-    Send notifications to multiple users in parallel.
-    
-    - **Parallel delivery**: Sends notifications concurrently
-    - **Priority handling**: Supports different notification priorities
-    - **Background processing**: Prevents API timeout for large batches
+    Send notifications to multiple users in parallel with priority and background support.
+
+    Args:
+        request (NotificationRequest): The bulk notification request payload.
+        background_tasks (BackgroundTasks): FastAPI background tasks handler.
+        user_service (UserService): User service for user operations.
+    Returns:
+        BulkOperationResponse: Bulk operation result with success, processed, failed, and errors.
+    Raises:
+        HTTPException: On server error or notification failures.
     """
     try:
         import time
@@ -449,11 +489,15 @@ async def get_user_statistics_parallel(
     user_service: UserService = Depends(lambda: UserService())
 ):
     """
-    Generate comprehensive user statistics in parallel.
-    
-    - **Parallel queries**: Executes multiple analytics queries concurrently
-    - **Real-time data**: Provides up-to-date statistics
-    - **Performance optimized**: Uses database connection pooling
+    Generate comprehensive user statistics in parallel with real-time data.
+
+    Args:
+        db (AsyncSession): Async database session dependency.
+        user_service (UserService): User service for user operations.
+    Returns:
+        Dict[str, Any]: Dictionary with user statistics and analytics.
+    Raises:
+        HTTPException: On server error or statistics calculation failures.
     """
     try:
         import time
@@ -478,33 +522,59 @@ async def get_user_statistics_parallel(
 # Task Queue Monitoring
 @router.get("/tasks/status/{task_id}")
 async def get_task_status(task_id: str):
-    """Get the status of a background task"""
-    result = enhanced_task_queue.get_task_result(task_id)
+    """
+    Get the status of a background task by its task ID.
+
+    Args:
+        task_id (str): The ID of the background task to check.
+    Returns:
+        Dict[str, Any]: Dictionary with task status and progress information.
+    Raises:
+        HTTPException: If the task is not found or status retrieval fails.
+    """
+    try:
+        result = enhanced_task_queue.get_task_result(task_id)
     
-    if not result:
-        raise HTTPException(status_code=404, detail="Task not found")
+        if not result:
+            raise HTTPException(status_code=404, detail="Task not found")
     
-    return {
-        "task_id": task_id,
-        "status": result.status,
-        "result": result.result,
-        "error": result.error,
-        "execution_time": result.execution_time,
-        "start_time": result.start_time.isoformat() if result.start_time else None,
-        "end_time": result.end_time.isoformat() if result.end_time else None
-    }
+        return {
+            "task_id": task_id,
+            "status": result.status,
+            "result": result.result,
+            "error": result.error,
+            "execution_time": result.execution_time,
+            "start_time": result.start_time.isoformat() if result.start_time else None,
+            "end_time": result.end_time.isoformat() if result.end_time else None
+        }
+        
+    except Exception as e:
+        logger.error(f"Task status retrieval error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/tasks/queue-stats")
 async def get_queue_statistics():
-    """Get task queue statistics and health"""
-    stats = enhanced_task_queue.get_queue_stats()
-    health = await enhanced_task_queue.health_check()
+    """
+    Get task queue statistics and health information.
+
+    Returns:
+        Dict[str, Any]: Dictionary with queue statistics and health report.
+    Raises:
+        HTTPException: If statistics retrieval fails.
+    """
+    try:
+        stats = enhanced_task_queue.get_queue_stats()
+        health = await enhanced_task_queue.health_check()
     
-    return {
-        "queue_stats": stats,
-        "health_check": health
-    }
+        return {
+            "queue_stats": stats,
+            "health_check": health
+        }
+        
+    except Exception as e:
+        logger.error(f"Queue statistics retrieval error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # Validation Endpoints
@@ -514,11 +584,15 @@ async def validate_users_parallel(
     user_service: UserService = Depends(lambda: UserService())
 ):
     """
-    Validate user data in parallel without creating records.
-    
-    - **Parallel validation**: Validates data using CPU-bound processing
-    - **Comprehensive checks**: Email format, username rules, required fields
-    - **Error reporting**: Detailed validation error messages
+    Validate user data in parallel without creating records, providing detailed error reporting.
+
+    Args:
+        request (BulkCreateRequest): The bulk create request payload for validation.
+        user_service (UserService): User service for user operations.
+    Returns:
+        BulkOperationResponse: Validation result with errors and statistics.
+    Raises:
+        HTTPException: On validation or processing errors.
     """
     try:
         import time

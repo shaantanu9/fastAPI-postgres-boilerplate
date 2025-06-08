@@ -16,7 +16,12 @@ router = APIRouter()
 
 
 def get_file_manager() -> FileManager:
-    """Get file manager instance with configuration"""
+    """
+    Get a configured file manager instance for handling file operations.
+
+    Returns:
+        FileManager: The configured file manager instance.
+    """
     # Configure based on environment
     config = FileManagerConfig(
         default_storage=FileStorageType.LOCAL,  # Change to S3 in production
@@ -36,8 +41,19 @@ async def upload_file(
     tags: Optional[str] = Form(None),  # Comma-separated tags
     file_manager: FileManager = Depends(get_file_manager)
 ) -> FileUploadResponse:
-    """Upload a file to the configured storage backend"""
-    
+    """
+    Upload a file to the configured storage backend (local or S3).
+
+    Args:
+        file (UploadFile): The file to upload.
+        storage_type (Optional[FileStorageType]): Storage backend to use.
+        tags (Optional[str]): Comma-separated tags for the file.
+        file_manager (FileManager): The file manager dependency.
+    Returns:
+        FileUploadResponse: Metadata and status of the uploaded file.
+    Raises:
+        HTTPException: If the upload fails.
+    """
     # Parse tags
     parsed_tags = []
     if tags:
@@ -64,8 +80,19 @@ async def upload_multiple_files(
     tags: Optional[str] = Form(None),
     file_manager: FileManager = Depends(get_file_manager)
 ) -> List[FileUploadResponse]:
-    """Upload multiple files"""
-    
+    """
+    Upload multiple files to the configured storage backend.
+
+    Args:
+        files (List[UploadFile]): List of files to upload.
+        storage_type (Optional[FileStorageType]): Storage backend to use.
+        tags (Optional[str]): Comma-separated tags for the files.
+        file_manager (FileManager): The file manager dependency.
+    Returns:
+        List[FileUploadResponse]: List of metadata and status for each uploaded file.
+    Raises:
+        HTTPException: If any upload fails.
+    """
     # Parse tags
     parsed_tags = []
     if tags:
@@ -101,8 +128,19 @@ async def generate_presigned_upload_url(
     file_size_limit: Optional[int] = Query(None, description="File size limit in bytes"),
     file_manager: FileManager = Depends(get_file_manager)
 ) -> Dict[str, Any]:
-    """Generate presigned URL for direct file upload to S3"""
-    
+    """
+    Generate a presigned URL for direct file upload to S3.
+
+    Args:
+        filename (str): Name of the file to be uploaded.
+        expires_in (int): Expiration time of the URL in seconds.
+        file_size_limit (Optional[int]): Maximum allowed file size in bytes.
+        file_manager (FileManager): The file manager dependency.
+    Returns:
+        dict: Presigned URL and upload parameters.
+    Raises:
+        HTTPException: If URL generation fails or S3 is not configured.
+    """
     try:
         result = await file_manager.generate_presigned_upload_url(
             filename=filename,
@@ -124,8 +162,19 @@ async def generate_presigned_download_url(
     filename: Optional[str] = Query(None, description="Download filename"),
     file_manager: FileManager = Depends(get_file_manager)
 ) -> Dict[str, str]:
-    """Generate presigned URL for file download"""
-    
+    """
+    Generate a presigned URL for downloading a file from S3.
+
+    Args:
+        file_id (str): Unique identifier of the file.
+        expires_in (int): Expiration time of the URL in seconds.
+        filename (Optional[str]): Custom filename for the download.
+        file_manager (FileManager): The file manager dependency.
+    Returns:
+        dict: Presigned download URL and parameters.
+    Raises:
+        HTTPException: If URL generation fails or file does not exist.
+    """
     # Get file metadata first
     file_metadata = await file_manager.get_file_info(file_id)
     if not file_metadata:
@@ -153,8 +202,17 @@ async def get_file_info(
     file_id: str,
     file_manager: FileManager = Depends(get_file_manager)
 ) -> FileMetadata:
-    """Get file metadata by ID"""
-    
+    """
+    Retrieve file metadata by its unique ID.
+
+    Args:
+        file_id (str): Unique identifier of the file.
+        file_manager (FileManager): The file manager dependency.
+    Returns:
+        FileMetadata: Metadata for the requested file.
+    Raises:
+        HTTPException: If the file does not exist or retrieval fails.
+    """
     file_metadata = await file_manager.get_file_info(file_id)
     if not file_metadata:
         raise HTTPException(
@@ -173,8 +231,20 @@ async def list_files(
     offset: int = Query(0, ge=0, description="Number of files to skip"),
     file_manager: FileManager = Depends(get_file_manager)
 ) -> List[FileMetadata]:
-    """List files with optional filtering"""
-    
+    """
+    List files with optional filtering by category, tags, and pagination.
+
+    Args:
+        category (Optional[FileCategory]): Filter files by category.
+        tags (Optional[str]): Comma-separated tags to filter files.
+        limit (int): Maximum number of files to return.
+        offset (int): Number of files to skip for pagination.
+        file_manager (FileManager): The file manager dependency.
+    Returns:
+        List[FileMetadata]: List of file metadata objects.
+    Raises:
+        HTTPException: If file listing fails.
+    """
     # Parse tags
     parsed_tags = None
     if tags:
@@ -195,8 +265,17 @@ async def delete_file(
     file_id: str,
     file_manager: FileManager = Depends(get_file_manager)
 ) -> Dict[str, str]:
-    """Delete a file"""
-    
+    """
+    Delete a file by its unique ID from the storage backend.
+
+    Args:
+        file_id (str): Unique identifier of the file to delete.
+        file_manager (FileManager): The file manager dependency.
+    Returns:
+        dict: Status message indicating deletion result.
+    Raises:
+        HTTPException: If deletion fails or file does not exist.
+    """
     success = await file_manager.delete_file(file_id)
     if success:
         return {"message": "File deleted successfully"}
@@ -211,19 +290,37 @@ async def delete_file(
 async def cleanup_old_files(
     file_manager: FileManager = Depends(get_file_manager)
 ) -> Dict[str, int]:
-    """Cleanup old files based on retention policy"""
-    
+    """
+    Cleanup old files based on the configured retention policy.
+
+    Args:
+        file_manager (FileManager): The file manager dependency.
+    Returns:
+        dict: Status and number of files cleaned up.
+    Raises:
+        HTTPException: If cleanup fails.
+    """
     deleted_count = await file_manager.cleanup_old_files()
     return {"deleted_count": deleted_count}
 
 
 @router.get("/categories/list")
 async def list_file_categories() -> List[str]:
-    """Get list of available file categories"""
-    return [category.value for category in FileCategory]
+    """
+    Get the list of available file categories.
+
+    Returns:
+        List[str]: List of file category names.
+    """
+    return [c.value for c in FileCategory]
 
 
 @router.get("/storage-types/list")
 async def list_storage_types() -> List[str]:
-    """Get list of available storage types"""
-    return [storage_type.value for storage_type in FileStorageType] 
+    """
+    Get the list of available storage types (e.g., local, S3).
+
+    Returns:
+        List[str]: List of storage type names.
+    """
+    return [s.value for s in FileStorageType]

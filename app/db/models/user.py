@@ -56,7 +56,7 @@ class User(Base):
         secondaryjoin="Role.id == UserRole.role_id"
     )
     sessions = relationship("UserSession", back_populates="user")
-    security_events = relationship("SecurityEvent", back_populates="user")
+    # security_events relationship moved to app.db.models.security.SecurityEvent
     passkeys = relationship("UserPasskey", back_populates="user")
 
 
@@ -153,20 +153,4 @@ class UserSession(Base):
     user = relationship("User", back_populates="sessions")
 
 
-# Security Event Logging (2025 Feature)
-class SecurityEvent(Base):
-    __tablename__ = "security_events"
-
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    user_id = Column(String, ForeignKey("users.id"), nullable=True)
-    event_type = Column(String(50), nullable=False)
-    event_category = Column(String(30), nullable=False)  # login, auth, access, security
-    event_data = Column(Text)  # JSON
-    ip_address = Column(String(45))
-    user_agent = Column(Text)
-    risk_score = Column(Integer, default=0)
-    status = Column(String(20), default="success")  # success, failure, blocked
-    created_at = Column(DateTime, server_default=func.now())
-
-    # Relationships
-    user = relationship("User", back_populates="security_events")
+# SecurityEvent model moved to app.db.models.security to avoid duplication

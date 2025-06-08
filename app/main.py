@@ -28,6 +28,9 @@ from fastapi.exceptions import RequestValidationError, HTTPException
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from slowapi.errors import RateLimitExceeded
 
+# Import API router
+from app.api.v1.api import api_router
+
 # Import rate limiting components
 from app.core.rate_limiting import (
     setup_rate_limiting,
@@ -80,6 +83,7 @@ try:
     from app.core.logging import setup_logging
     from app.core.config import get_settings
     from app.api.v1.api import api_router
+    from app.core.security import EnterpriseSecurityService, security_service
     CORE_IMPORTS_AVAILABLE = True
 except ImportError as e:
     logger.warning(f"Core imports not available: {e}")
@@ -284,15 +288,70 @@ def create_app() -> FastAPI:
         # Add basic exception handlers
         app.add_exception_handler(RateLimitExceeded, enhanced_rate_limit_exceeded_handler)
     
-    # Setup rate limiting (must be after all other middleware and exception handlers)
-    async def setup_rate_limiting_wrapper():
-        await setup_rate_limiting(app)
+    # Setup rate limiting middleware during app creation (not during startup)
+    try:
+        from slowapi import Limiter, _rate_limit_exceeded_handler
+        from slowapi.middleware import SlowAPIMiddleware
+        from slowapi.util import get_remote_address
+        
+        # Get rate limit configuration
+        config = get_rate_limit_config()
+        
+        # Import the correct key function
+        from app.core.rate_limiting import get_rate_limit_key
+        
+        # Create traditional slowapi limiter for middleware compatibility
+        limiter = Limiter(
+            key_func=get_rate_limit_key,
+            default_limits=[config.default_limit],
+            headers_enabled=True,
+            storage_uri=config.redis_url
+        )
+        
+        # Override the default handler
+        limiter._rate_limit_exceeded_handler = enhanced_rate_limit_exceeded_handler
+        app.state.limiter = limiter
+        
+        # Add middleware DURING app creation
+        app.add_middleware(SlowAPIMiddleware)
+        
+        # Setup enhanced rate limiting initialization for startup
+        @app.on_event("startup")
+        async def startup_rate_limiting():
+            from app.core.rate_limiting import initialize_enhanced_rate_limiter
+            
+            try:
+                # Initialize enhanced rate limiter
+                rate_limiter = await initialize_enhanced_rate_limiter(config)
+                
+                # Store in app state for access in endpoints
+                app.state.rate_limiter = rate_limiter
+                
+            except Exception as e:
+                logger.error(f"Failed to initialize enhanced rate limiting: {e}")
+                if not config.enable_fallback:
+                    raise
+                logger.warning("Continuing with basic rate limiting only")
+        
+        # Add cleanup on shutdown
+        @app.on_event("shutdown")
+        async def shutdown_rate_limiting():
+            try:
+                from app.core.rate_limiting import _rate_limiter
+                if _rate_limiter:
+                    await _rate_limiter.cleanup()
+                logger.info("Rate limiting cleanup completed")
+            except Exception as e:
+                logger.error(f"Error during rate limiting cleanup: {e}")
+        
+        logger.info("Rate limiting middleware setup completed successfully")
+        
+    except ImportError as e:
+        logger.warning(f"Rate limiting not available: {e}")
+    except Exception as e:
+        logger.error(f"Failed to setup rate limiting middleware: {e}")
+        # Don't crash the app if rate limiting fails
     
-    # Add rate limiting setup to startup
-    @app.on_event("startup")
-    async def startup_rate_limiting():
-        await setup_rate_limiting_wrapper()
-
     # --- Request logging middleware ---
     import time
     
@@ -378,6 +437,10 @@ def create_app() -> FastAPI:
             "total_plugins": len(status),
             "plugins": status
         }
+
+    # Initialize security_service
+    from app.core.security import security_service
+    security_service.init_app(app)
 
     return app
 

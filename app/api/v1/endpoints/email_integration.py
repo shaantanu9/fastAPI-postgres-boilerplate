@@ -33,7 +33,22 @@ except Exception as e:
 
 # API Models
 class SendEmailRequest(BaseModel):
-    """API model for sending emails"""
+    """
+    API model for sending emails via the email service endpoints.
+
+    Attributes:
+        to_emails (List[str]): List of recipient email addresses.
+        cc_emails (Optional[List[str]]): List of CC email addresses.
+        bcc_emails (Optional[List[str]]): List of BCC email addresses.
+        subject (str): Subject of the email.
+        html_content (Optional[str]): HTML content of the email.
+        text_content (Optional[str]): Plain text content of the email.
+        from_name (Optional[str]): Sender's display name.
+        reply_to (Optional[List[str]]): List of reply-to email addresses.
+        message_tags (Dict[str, str]): Custom tags for tracking/campaigns.
+        campaign_id (Optional[str]): Campaign identifier.
+        priority (str): Priority for sending the email.
+    """
     to_emails: List[str]
     cc_emails: Optional[List[str]] = []
     bcc_emails: Optional[List[str]] = []
@@ -48,7 +63,17 @@ class SendEmailRequest(BaseModel):
 
 
 class SendTemplateEmailRequest(BaseModel):
-    """API model for sending template emails"""
+    """
+    API model for sending template-based emails.
+
+    Attributes:
+        to_emails (List[str]): List of recipient email addresses.
+        cc_emails (Optional[List[str]]): List of CC email addresses.
+        subject (str): Subject of the email.
+        template_data (Dict[str, str]): Data for populating the email template.
+        from_name (Optional[str]): Sender's display name.
+        message_tags (Dict[str, str]): Custom tags for tracking/campaigns.
+    """
     to_emails: List[str]
     cc_emails: Optional[List[str]] = []
     subject: str
@@ -58,7 +83,18 @@ class SendTemplateEmailRequest(BaseModel):
 
 
 class ScheduleEmailRequest(BaseModel):
-    """API model for scheduling emails"""
+    """
+    API model for scheduling emails to be sent at a specific time.
+
+    Attributes:
+        to_emails (List[str]): List of recipient email addresses.
+        subject (str): Subject of the email.
+        html_content (Optional[str]): HTML content of the email.
+        text_content (Optional[str]): Plain text content of the email.
+        send_time (datetime): Scheduled time for sending the email.
+        from_name (Optional[str]): Sender's display name.
+        message_tags (Dict[str, str]): Custom tags for tracking/campaigns.
+    """
     to_emails: List[str]
     subject: str
     html_content: Optional[str] = None
@@ -69,21 +105,45 @@ class ScheduleEmailRequest(BaseModel):
 
 
 class WelcomeEmailRequest(BaseModel):
-    """API model for welcome emails"""
+    """
+    API model for sending welcome emails to new users.
+
+    Attributes:
+        user_email (EmailStr): Recipient's email address.
+        user_name (str): Recipient's name.
+        verification_token (str): Token for email verification link.
+    """
     user_email: EmailStr
     user_name: str
     verification_token: str
 
 
 class PasswordResetRequest(BaseModel):
-    """API model for password reset emails"""
+    """
+    API model for sending password reset emails.
+
+    Attributes:
+        user_email (EmailStr): Recipient's email address.
+        user_name (str): Recipient's name.
+        reset_token (str): Token for password reset link.
+    """
     user_email: EmailStr
     user_name: str
     reset_token: str
 
 
 class EmailStatusResponse(BaseModel):
-    """API response model for email operations"""
+    """
+    API response model for email operations.
+
+    Attributes:
+        success (bool): Whether the operation was successful.
+        tracking_id (str): Unique tracking ID for the email operation.
+        message_id (Optional[str]): ID returned by the email provider (e.g., SES).
+        delivery_status (str): Status of the email delivery.
+        error_message (Optional[str]): Error message if the operation failed.
+        timestamp (datetime): Time of the operation.
+    """
     success: bool
     tracking_id: str
     message_id: Optional[str] = None
@@ -93,7 +153,14 @@ class EmailStatusResponse(BaseModel):
 
 
 def get_email_service() -> EmailService:
-    """Get email service instance with error handling"""
+    """
+    Retrieve a global email service instance, initializing it if necessary.
+
+    Returns:
+        EmailService: The global email service instance.
+    Raises:
+        HTTPException: If the email service cannot be initialized.
+    """
     global email_service
     
     if email_service is None:
@@ -112,7 +179,15 @@ def get_email_service() -> EmailService:
 
 
 def handle_email_service_error(e: Exception, operation: str) -> HTTPException:
-    """Handle email service errors and convert to appropriate HTTP exceptions"""
+    """
+    Handle email service errors and convert them to appropriate HTTP exceptions.
+
+    Args:
+        e (Exception): The exception raised during the email operation.
+        operation (str): The name of the email operation being performed.
+    Returns:
+        HTTPException: Mapped HTTP exception for FastAPI error handling.
+    """
     if isinstance(e, EmailServiceError):
         logger.error(f"Email service error in {operation}: {str(e)}")
         return HTTPException(status_code=400, detail=f"Email service error: {str(e)}")
@@ -133,9 +208,10 @@ def handle_email_service_error(e: Exception, operation: str) -> HTTPException:
 @router.get("/health")
 async def get_email_service_health():
     """
-    Get email service health status
-    
-    Returns detailed health information about the email service components.
+    Get health status of the email service and its components.
+
+    Returns:
+        dict: Health status, details, and timestamp.
     """
     try:
         service = get_email_service()
@@ -169,10 +245,15 @@ async def send_email(
     background_tasks: BackgroundTasks
 ):
     """
-    Send email immediately
-    
-    Send an email to multiple recipients with HTML/text content.
-    Supports CC, BCC, custom message tags, and priority settings.
+    Send an email immediately to multiple recipients with support for CC, BCC, custom tags, and priority.
+
+    Args:
+        request (SendEmailRequest): The email sending request payload.
+        background_tasks (BackgroundTasks): FastAPI background tasks handler.
+    Returns:
+        EmailStatusResponse: Status and metadata of the email operation.
+    Raises:
+        HTTPException: On email sending error or service failure.
     """
     try:
         logger.debug(f"API request to send email to {len(request.to_emails)} recipients")
@@ -240,9 +321,19 @@ async def send_simple_email(
     bcc_emails: str = None  # Comma-separated
 ):
     """
-    Send simple email with basic parameters
-    
-    Simplified endpoint for sending basic emails without complex configuration.
+    Send a simple email with basic parameters and minimal configuration.
+
+    Args:
+        to_email (str): Recipient email address.
+        subject (str): Subject of the email.
+        html_content (str): HTML content of the email.
+        text_content (str, optional): Plain text content of the email.
+        cc_emails (str, optional): Comma-separated CC emails.
+        bcc_emails (str, optional): Comma-separated BCC emails.
+    Returns:
+        EmailStatusResponse: Status and metadata of the email operation.
+    Raises:
+        HTTPException: On email sending error or service failure.
     """
     try:
         logger.debug(f"API request to send simple email to: {to_email}")
@@ -292,10 +383,14 @@ async def send_template_email(
     request: SendTemplateEmailRequest
 ):
     """
-    Send email using SES template
-    
-    Send emails using pre-created SES templates with dynamic data.
-    Templates must be created in AWS SES first.
+    Send an email using a pre-created SES template and dynamic template data.
+
+    Args:
+        request (SendTemplateEmailRequest): The template email sending request payload.
+    Returns:
+        EmailStatusResponse: Status and metadata of the email operation.
+    Raises:
+        HTTPException: On template sending error or service failure.
     """
     try:
         logger.debug(f"API request to send template email to {len(request.to_emails)} recipients")
@@ -349,10 +444,14 @@ async def schedule_email(
     request: ScheduleEmailRequest
 ):
     """
-    Schedule email for later delivery
-    
-    Schedule an email to be sent at a specific time using the job queue.
-    Requires Procrastinate to be configured.
+    Schedule an email for later delivery using the job queue.
+
+    Args:
+        request (ScheduleEmailRequest): The scheduling request payload.
+    Returns:
+        EmailStatusResponse: Status and metadata of the scheduled email operation.
+    Raises:
+        HTTPException: On scheduling error or service failure.
     """
     try:
         logger.debug(f"API request to schedule email for {request.send_time}")
@@ -412,10 +511,17 @@ async def send_email_with_attachments(
     files: List[UploadFile] = File(...)
 ):
     """
-    Send email with file attachments
-    
-    Upload files and send them as email attachments.
-    Supports multiple file types with automatic MIME type detection.
+    Send an email with file attachments, supporting multiple file types and MIME detection.
+
+    Args:
+        to_emails (str): Comma-separated recipient email addresses.
+        subject (str): Subject of the email.
+        html_content (str): HTML content of the email.
+        files (List[UploadFile]): List of files to attach.
+    Returns:
+        EmailStatusResponse: Status and metadata of the email operation.
+    Raises:
+        HTTPException: On attachment or sending failure.
     """
     try:
         logger.debug(f"API request to send email with {len(files)} attachments")
@@ -498,9 +604,14 @@ async def send_email_with_attachments(
 @router.post("/welcome", response_model=EmailStatusResponse)
 async def send_welcome_email_api(request: WelcomeEmailRequest):
     """
-    Send welcome email with verification link
-    
-    Pre-configured welcome email template for new user registration.
+    Send a welcome email with a verification link using a pre-configured template.
+
+    Args:
+        request (WelcomeEmailRequest): The welcome email request payload.
+    Returns:
+        EmailStatusResponse: Status and metadata of the welcome email operation.
+    Raises:
+        HTTPException: On sending error or template failure.
     """
     try:
         logger.debug(f"API request to send welcome email to: {request.user_email}")
@@ -533,9 +644,14 @@ async def send_welcome_email_api(request: WelcomeEmailRequest):
 @router.post("/password-reset", response_model=EmailStatusResponse)
 async def send_password_reset_api(request: PasswordResetRequest):
     """
-    Send password reset email
-    
-    Pre-configured password reset email template with secure reset link.
+    Send a password reset email using a pre-configured template with a secure reset link.
+
+    Args:
+        request (PasswordResetRequest): The password reset email request payload.
+    Returns:
+        EmailStatusResponse: Status and metadata of the password reset email operation.
+    Raises:
+        HTTPException: On sending error or template failure.
     """
     try:
         logger.debug(f"API request to send password reset email to: {request.user_email}")
@@ -574,9 +690,18 @@ async def send_notification(
     priority: str = "normal"
 ):
     """
-    Send notification email
-    
-    General-purpose notification email for user alerts and updates.
+    Send a general-purpose notification email for user alerts and updates.
+
+    Args:
+        user_email (str): Recipient's email address.
+        user_name (str): Recipient's name.
+        subject (str): Subject of the notification email.
+        message (str): Content of the notification message.
+        priority (str, optional): Priority for sending the notification.
+    Returns:
+        EmailStatusResponse: Status and metadata of the notification email operation.
+    Raises:
+        HTTPException: On sending error or service failure.
     """
     try:
         logger.debug(f"API request to send notification email to: {user_email}")
@@ -615,9 +740,12 @@ async def send_notification(
 @router.get("/account-info")
 async def get_ses_account_info():
     """
-    Get AWS SES account information
-    
-    Returns account details, sending quotas, and statistics.
+    Get AWS SES account information including quotas and statistics.
+
+    Returns:
+        dict: SES account details, quotas, and statistics.
+    Raises:
+        HTTPException: On SES API error or credentials failure.
     """
     try:
         logger.debug("API request to get SES account info")
@@ -640,9 +768,14 @@ async def get_ses_account_info():
 @router.post("/verify-domain/{domain}")
 async def verify_domain(domain: str):
     """
-    Verify domain identity in SES
-    
-    Initiate domain verification process for sending emails from the domain.
+    Initiate domain verification process in SES for sending emails from the domain.
+
+    Args:
+        domain (str): Domain name to verify with SES.
+    Returns:
+        dict: Verification status and DNS records if applicable.
+    Raises:
+        HTTPException: On SES API error or verification failure.
     """
     try:
         logger.debug(f"API request to verify domain: {domain}")
@@ -669,9 +802,14 @@ async def verify_domain(domain: str):
 @router.post("/create-configuration-set/{name}")
 async def create_configuration_set(name: str):
     """
-    Create SES configuration set
-    
-    Create a configuration set for tracking email events and metrics.
+    Create a configuration set in SES for tracking email events and metrics.
+
+    Args:
+        name (str): The name of the configuration set to create.
+    Returns:
+        dict: Status and details of the configuration set creation.
+    Raises:
+        HTTPException: On SES API error or configuration set failure.
     """
     try:
         logger.debug(f"API request to create configuration set: {name}")
@@ -698,9 +836,12 @@ async def create_configuration_set(name: str):
 @router.get("/templates")
 async def list_templates():
     """
-    List all SES email templates
-    
-    Returns a list of all email templates configured in SES.
+    List all SES email templates configured in the account.
+
+    Returns:
+        dict: List of SES email templates and their metadata.
+    Raises:
+        HTTPException: On SES API error or template retrieval failure.
     """
     try:
         logger.debug("API request to list email templates")
@@ -722,10 +863,12 @@ async def list_templates():
 @router.get("/config/debug")
 async def get_configuration_debug():
     """
-    Get configuration debug information
-    
-    Returns detailed information about the current email service configuration
-    to help diagnose issues.
+    Get detailed configuration debug information for the email service.
+
+    Returns:
+        dict: Debug information about the email service configuration.
+    Raises:
+        HTTPException: On configuration retrieval failure.
     """
     try:
         from app.core.config import get_debug_info, validate_aws_configuration
@@ -750,9 +893,12 @@ async def get_configuration_debug():
 @router.get("/config/status")
 async def get_configuration_status():
     """
-    Get configuration status summary
-    
-    Returns a quick summary of configuration status with recommendations.
+    Get a summary of the email service configuration status with recommendations.
+
+    Returns:
+        dict: Configuration status summary and recommendations.
+    Raises:
+        HTTPException: On configuration status retrieval failure.
     """
     try:
         from app.core.config import validate_aws_configuration
@@ -782,9 +928,12 @@ async def get_configuration_status():
 @router.post("/test-email")
 async def test_email_sending():
     """
-    Test email sending functionality
-    
-    Send a test email to verify the email service is working correctly.
+    Test email sending functionality by sending a test email.
+
+    Returns:
+        EmailStatusResponse: Status and metadata of the test email operation.
+    Raises:
+        HTTPException: On test email sending error or service failure.
     """
     try:
         logger.debug("API request to send test email")

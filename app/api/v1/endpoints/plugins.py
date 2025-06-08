@@ -114,10 +114,23 @@ async def list_plugins(
     )
 
 
-@router.get("/plugins/{plugin_name}", response_model=PluginStatusResponse, tags=["Plugin Management"])
+@router.get("/plugins/{plugin_name}", response_model=Dict[str, Any], tags=["Plugin Management"])
 async def get_plugin_details(plugin_name: str):
     """
     Get detailed information about a specific plugin.
+    
+    Retrieves comprehensive details about a plugin including its configuration,
+    dependencies, hooks, extension points, and runtime statistics.
+    
+    Args:
+        plugin_name (str): The name of the plugin to retrieve details for.
+        
+    Returns:
+        Dict[str, Any]: Detailed plugin information including configuration,
+                       status, dependencies, and runtime statistics.
+                       
+    Raises:
+        HTTPException: If the plugin system is not initialized or the plugin is not found.
     """
     plugin_manager = get_plugin_manager()
     if not plugin_manager:
@@ -135,21 +148,36 @@ async def get_plugin_details(plugin_name: str):
     
     metadata = plugin.metadata
     
-    return PluginStatusResponse(
-        name=metadata.name,
-        version=metadata.version,
-        status=metadata.status.value,
-        description=metadata.description,
-        dependencies=metadata.dependencies,
-        priority=metadata.priority,
-        tags=metadata.tags
-    )
+    return {
+        "name": metadata.name,
+        "version": metadata.version,
+        "status": metadata.status.value,
+        "description": metadata.description,
+        "dependencies": metadata.dependencies,
+        "priority": metadata.priority,
+        "tags": metadata.tags
+    }
 
 
 @router.post("/plugins/{plugin_name}/enable", response_model=PluginOperationResponse, tags=["Plugin Management"])
 async def enable_plugin(plugin_name: str):
     """
     Enable a disabled plugin.
+    
+    Activates a previously disabled plugin, making its functionality available
+    to the application. This operation may trigger dependency resolution and
+    initialization of the plugin.
+    
+    Args:
+        plugin_name (str): The name of the plugin to enable.
+        
+    Returns:
+        PluginOperationResponse: Result of the enable operation including success status
+                                and any relevant messages.
+                                
+    Raises:
+        HTTPException: If the plugin system is not initialized, the plugin is not found,
+                      or the plugin cannot be enabled due to dependency issues.
     """
     plugin_manager = get_plugin_manager()
     if not plugin_manager:
@@ -178,6 +206,20 @@ async def enable_plugin(plugin_name: str):
 async def disable_plugin(plugin_name: str):
     """
     Disable an enabled plugin.
+    
+    Deactivates an active plugin, removing its functionality from the application.
+    This operation may trigger cleanup routines and notify dependent plugins.
+    
+    Args:
+        plugin_name (str): The name of the plugin to disable.
+        
+    Returns:
+        PluginOperationResponse: Result of the disable operation including success status
+                                and any relevant messages.
+                                
+    Raises:
+        HTTPException: If the plugin system is not initialized, the plugin is not found,
+                      or the plugin cannot be disabled due to dependency issues.
     """
     plugin_manager = get_plugin_manager()
     if not plugin_manager:
@@ -206,6 +248,17 @@ async def disable_plugin(plugin_name: str):
 async def get_system_health():
     """
     Get overall system health including plugin status.
+    
+    Provides a comprehensive health check of the plugin system and its components,
+    including counts of healthy and problematic plugins, system service availability,
+    and overall system status.
+    
+    Returns:
+        SystemHealthResponse: System health information including plugin counts by status
+                            and system service availability.
+                            
+    Raises:
+        HTTPException: If the plugin system is not initialized or health check fails.
     """
     plugin_manager = get_plugin_manager()
     if not plugin_manager:
@@ -265,6 +318,20 @@ async def get_system_health():
 async def get_event_history(limit: int = Query(50, ge=1, le=1000)):
     """
     Get recent plugin system events.
+    
+    Retrieves a chronological history of events from the plugin system, such as
+    plugin loading, activation, deactivation, and errors. Useful for debugging
+    and monitoring plugin activity.
+    
+    Args:
+        limit (int): Maximum number of events to return (1-1000).
+        
+    Returns:
+        Dict[str, Any]: List of plugin system events with timestamps, event types,
+                       and related information.
+                       
+    Raises:
+        HTTPException: If the plugin system is not initialized or event retrieval fails.
     """
     plugin_manager = get_plugin_manager()
     if not plugin_manager:
@@ -289,6 +356,17 @@ async def get_event_history(limit: int = Query(50, ge=1, le=1000)):
 async def get_registered_services():
     """
     Get list of all registered services.
+    
+    Returns a mapping of service types to the plugins that provide implementations
+    of those services. Useful for understanding the available service ecosystem
+    and plugin capabilities.
+    
+    Returns:
+        Dict[str, Any]: Dictionary mapping service types to lists of plugin names
+                       that provide those services.
+                       
+    Raises:
+        HTTPException: If the plugin system is not initialized or service discovery fails.
     """
     plugin_manager = get_plugin_manager()
     if not plugin_manager:
@@ -315,6 +393,17 @@ async def get_registered_services():
 async def get_loading_order():
     """
     Get the plugin loading order based on dependencies.
+    
+    Calculates and returns the order in which plugins are loaded based on their
+    dependencies. This information is useful for understanding the initialization
+    sequence and diagnosing dependency-related issues.
+    
+    Returns:
+        Dict[str, Any]: Information about plugin loading order, including the ordered list
+                      of plugins and any circular dependency warnings.
+                      
+    Raises:
+        HTTPException: If the plugin system is not initialized or dependency resolution fails.
     """
     plugin_manager = get_plugin_manager()
     if not plugin_manager:

@@ -28,8 +28,18 @@ async def create_organization(
     current_user: UserRead = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Create a new organization (user becomes owner)"""
-    
+    """
+    Create a new organization and assign the requesting user as owner.
+
+    Args:
+        org_data (OrganizationCreate): Organization creation payload.
+        current_user (UserRead): The current authenticated user.
+        db (AsyncSession): Database session dependency.
+    Returns:
+        OrganizationRead: The created organization object.
+    Raises:
+        HTTPException: On creation error or database failure.
+    """
     try:
         organization = await organization_service.create_organization(
             db, org_data, current_user.id
@@ -52,8 +62,19 @@ async def list_user_organizations(
     current_user: UserRead = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Get all organizations for current user"""
-    
+    """
+    Retrieve all organizations for the current user with pagination.
+
+    Args:
+        skip (int): Number of organizations to skip (pagination).
+        limit (int): Maximum number of organizations to return.
+        current_user (UserRead): The current authenticated user.
+        db (AsyncSession): Database session dependency.
+    Returns:
+        OrganizationListResponse: List of organizations and pagination metadata.
+    Raises:
+        HTTPException: On retrieval error or database failure.
+    """
     try:
         organizations, total = await organization_service.get_user_organizations(
             db, current_user.id, skip, limit
@@ -79,8 +100,18 @@ async def get_organization(
     current_user: UserRead = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Get organization by slug"""
-    
+    """
+    Retrieve organization details by slug (must be member or admin).
+
+    Args:
+        organization_slug (str): Unique slug for the organization.
+        current_user (UserRead): The current authenticated user.
+        db (AsyncSession): Database session dependency.
+    Returns:
+        OrganizationRead: The organization object.
+    Raises:
+        HTTPException: If organization not found or access denied.
+    """
     try:
         organization = await organization_service.get_organization_by_slug(
             db, organization_slug, current_user.id
@@ -110,8 +141,19 @@ async def update_organization(
     current_user: UserRead = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Update organization (requires admin role)"""
-    
+    """
+    Update organization details (requires admin role).
+
+    Args:
+        organization_id (str): Unique ID of the organization to update.
+        org_data (OrganizationUpdate): Update payload for the organization.
+        current_user (UserRead): The current authenticated user.
+        db (AsyncSession): Database session dependency.
+    Returns:
+        OrganizationRead: The updated organization object.
+    Raises:
+        HTTPException: If update fails or permission denied.
+    """
     try:
         organization = await organization_service.update_organization(
             db, organization_id, org_data, current_user.id
@@ -133,8 +175,18 @@ async def delete_organization(
     current_user: UserRead = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Delete organization (owner only)"""
-    
+    """
+    Delete an organization (owner only).
+
+    Args:
+        organization_id (str): Unique ID of the organization to delete.
+        current_user (UserRead): The current authenticated user.
+        db (AsyncSession): Database session dependency.
+    Returns:
+        dict: Status message indicating deletion result.
+    Raises:
+        HTTPException: If deletion fails or permission denied.
+    """
     try:
         await organization_service.delete_organization(
             db, organization_id, current_user.id
@@ -160,8 +212,20 @@ async def get_organization_members(
     current_user: UserRead = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Get organization members"""
-    
+    """
+    Retrieve a paginated list of members for the specified organization.
+
+    Args:
+        organization_id (str): Unique ID of the organization.
+        skip (int): Number of members to skip (pagination).
+        limit (int): Maximum number of members to return.
+        current_user (UserRead): The current authenticated user.
+        db (AsyncSession): Database session dependency.
+    Returns:
+        OrganizationMembersResponse: List of members and total count.
+    Raises:
+        HTTPException: If retrieval fails or permission denied.
+    """
     try:
         members, total = await organization_service.get_organization_members(
             db, organization_id, current_user.id, skip, limit
@@ -189,6 +253,21 @@ async def invite_user_to_organization(
     current_user: UserRead = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
+    """
+    Invite a user to join the organization by sending an invitation.
+
+    Args:
+        organization_id (str): Unique ID of the organization.
+        invitation_data (OrganizationInvitationCreate): Invitation request payload.
+        background_tasks (BackgroundTasks): FastAPI background task handler.
+        current_user (UserRead): The current authenticated user.
+        db (AsyncSession): Database session dependency.
+    Returns:
+        OrganizationInvitationRead: The created invitation details.
+    Raises:
+        HTTPException: If invitation creation fails or permission denied.
+    """
+
     """Invite user to organization"""
     
     try:
@@ -214,8 +293,20 @@ async def bulk_invite_users(
     current_user: UserRead = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Bulk invite users to organization"""
-    
+    """
+    Bulk invite multiple users to join the organization by sending invitations.
+
+    Args:
+        organization_id (str): Unique ID of the organization.
+        bulk_invitation (OrganizationInviteBulk): Bulk invitation request payload.
+        background_tasks (BackgroundTasks): FastAPI background task handler.
+        current_user (UserRead): The current authenticated user.
+        db (AsyncSession): Database session dependency.
+    Returns:
+        dict: Dictionary with successful and failed invitations.
+    Raises:
+        HTTPException: If any invitation fails or permission denied.
+    """
     try:
         invitations = []
         failed_invitations = []
@@ -260,8 +351,18 @@ async def accept_organization_invitation(
     current_user: UserRead = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Accept organization invitation"""
-    
+    """
+    Accept an organization invitation using a provided token.
+
+    Args:
+        invitation_accept (OrganizationInvitationAccept): Invitation acceptance payload (includes token).
+        current_user (UserRead): The current authenticated user.
+        db (AsyncSession): Database session dependency.
+    Returns:
+        dict: Status message indicating acceptance result.
+    Raises:
+        HTTPException: If invitation acceptance fails or token is invalid.
+    """
     try:
         membership = await organization_service.accept_organization_invitation(
             db, invitation_accept.token, current_user.id
@@ -285,8 +386,20 @@ async def update_member_role(
     current_user: UserRead = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Update member role"""
-    
+    """
+    Update the role of a member within the organization.
+
+    Args:
+        organization_id (str): Unique ID of the organization.
+        member_user_id (str): User ID of the member to update.
+        role_update (OrganizationMembershipUpdate): Role update payload.
+        current_user (UserRead): The current authenticated user.
+        db (AsyncSession): Database session dependency.
+    Returns:
+        dict: Status message indicating update result.
+    Raises:
+        HTTPException: If update fails, role is missing, or permission denied.
+    """
     try:
         if role_update.role is None:
             raise HTTPException(
@@ -315,8 +428,19 @@ async def bulk_update_member_roles(
     current_user: UserRead = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Bulk update member roles"""
-    
+    """
+    Bulk update the roles of multiple members within the organization.
+
+    Args:
+        organization_id (str): Unique ID of the organization.
+        bulk_update (BulkMemberUpdate): Bulk member update payload.
+        current_user (UserRead): The current authenticated user.
+        db (AsyncSession): Database session dependency.
+    Returns:
+        dict: Dictionary with successful and failed updates.
+    Raises:
+        HTTPException: If any update fails or permission denied.
+    """
     try:
         successful_updates = []
         failed_updates = []
@@ -360,8 +484,19 @@ async def remove_member_from_organization(
     current_user: UserRead = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Remove member from organization"""
-    
+    """
+    Remove a member from the organization.
+
+    Args:
+        organization_id (str): Unique ID of the organization.
+        member_user_id (str): User ID of the member to remove.
+        current_user (UserRead): The current authenticated user.
+        db (AsyncSession): Database session dependency.
+    Returns:
+        dict: Status message indicating removal result.
+    Raises:
+        HTTPException: If removal fails or permission denied.
+    """
     try:
         await organization_service.remove_member(
             db, organization_id, member_user_id, current_user.id
@@ -385,8 +520,18 @@ async def get_organization_usage(
     current_user: UserRead = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Get organization usage statistics"""
-    
+    """
+    Retrieve usage statistics and analytics for the specified organization.
+
+    Args:
+        organization_id (str): Unique ID of the organization.
+        current_user (UserRead): The current authenticated user.
+        db (AsyncSession): Database session dependency.
+    Returns:
+        OrganizationUsage: Usage statistics and analytics for the organization.
+    Raises:
+        HTTPException: If retrieval fails or permission denied.
+    """
     try:
         usage = await organization_service.get_organization_usage(
             db, organization_id, current_user.id
@@ -411,8 +556,19 @@ async def update_organization_settings(
     current_user: UserRead = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Update organization settings"""
-    
+    """
+    Update the settings for an organization (owner or admin only).
+
+    Args:
+        organization_id (str): Unique ID of the organization.
+        settings_update (OrganizationSettings): Settings update payload.
+        current_user (UserRead): The current authenticated user.
+        db (AsyncSession): Database session dependency.
+    Returns:
+        dict: Status message or updated settings.
+    Raises:
+        HTTPException: If update fails, organization not found, or permission denied.
+    """
     try:
         # Check permissions
         await organization_service._check_organization_permission(
@@ -445,8 +601,19 @@ async def update_organization_features(
     current_user: UserRead = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Update organization features (owner only)"""
-    
+    """
+    Update the enabled features for an organization (owner only).
+
+    Args:
+        organization_id (str): Unique ID of the organization.
+        features_update (OrganizationFeatures): Features update payload.
+        current_user (UserRead): The current authenticated user.
+        db (AsyncSession): Database session dependency.
+    Returns:
+        dict: Status message or updated features.
+    Raises:
+        HTTPException: If update fails, organization not found, or permission denied.
+    """
     try:
         # Check permissions (owner only for feature updates)
         await organization_service._check_organization_permission(
@@ -482,8 +649,20 @@ async def get_organization_projects(
     current_user: UserRead = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Get organization projects"""
-    
+    """
+    Retrieve a paginated list of projects for the specified organization.
+
+    Args:
+        organization_id (str): Unique ID of the organization.
+        skip (int): Number of projects to skip (pagination).
+        limit (int): Maximum number of projects to return.
+        current_user (UserRead): The current authenticated user.
+        db (AsyncSession): Database session dependency.
+    Returns:
+        dict: List of projects and pagination metadata.
+    Raises:
+        HTTPException: If retrieval fails or permission denied.
+    """
     try:
         # Check membership
         await organization_service._check_organization_membership(
@@ -537,7 +716,20 @@ async def create_organization_project(
     current_user: UserRead = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Create a new project in organization"""
+    """
+    Create a new project within the specified organization.
+    
+    Args:
+        organization_id (str): Unique ID of the organization.
+        project_data (ProjectCreate): Project creation payload with name, description, etc.
+        current_user (UserRead): The current authenticated user.
+        db (AsyncSession): Database session dependency.
+    Returns:
+        ProjectRead: The created project object.
+    Raises:
+        HTTPException: If project creation fails, organization not found, permission denied,
+                      or organization has reached its project limit.
+    """
     
     try:
         # Check membership and project creation limit
@@ -587,7 +779,18 @@ async def check_organization_membership(
     current_user: UserRead = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Check if current user is a member of organization"""
+    """
+    Check if the current user is a member of the specified organization and return their role.
+    
+    Args:
+        organization_id (str): Unique ID of the organization.
+        current_user (UserRead): The current authenticated user.
+        db (AsyncSession): Database session dependency.
+    Returns:
+        dict: Dictionary containing membership status, role, and organization ID.
+    Raises:
+        HTTPException: If membership check fails or database error occurs.
+    """
     
     try:
         is_member = await organization_service.is_user_member(

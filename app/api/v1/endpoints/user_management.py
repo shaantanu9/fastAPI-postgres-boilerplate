@@ -103,8 +103,18 @@ async def forgot_password(
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db)
 ):
-    """Send password reset link to user email"""
-    
+    """
+    Send a password reset link to the user's email address.
+
+    Args:
+        request (PasswordResetRequest): Password reset request payload (includes email).
+        background_tasks (BackgroundTasks): FastAPI background task handler.
+        db (AsyncSession): Database session dependency.
+    Returns:
+        dict: Status message indicating if the reset email was sent.
+    Raises:
+        None: Does not reveal if the email exists for security reasons.
+    """
     # Get user by email
     user = await enhanced_user_service.get_by_username_or_email(db, email=request.email)
     if not user:
@@ -128,8 +138,18 @@ async def reset_password(
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db)
 ):
-    """Reset user password with token"""
-    
+    """
+    Reset the user's password using a valid reset token and new password.
+
+    Args:
+        request (PasswordResetConfirm): Password reset confirmation payload (token, user_id, new password).
+        background_tasks (BackgroundTasks): FastAPI background task handler.
+        db (AsyncSession): Database session dependency.
+    Returns:
+        dict: Status message indicating if the password was reset.
+    Raises:
+        HTTPException: If user is not found, token is invalid, or password is too weak.
+    """
     # Get user
     user = await enhanced_user_service.get_by_id(db, request.user_id)
     if not user:
@@ -183,7 +203,19 @@ async def invite_user(
     current_user: UserRead = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Invite a user to join the organization"""
+    """
+    Invite a user to join the organization by sending an invitation email.
+
+    Args:
+        invitation (UserInvitationRequest): User invitation request payload.
+        background_tasks (BackgroundTasks): FastAPI background task handler.
+        current_user (UserRead): The current authenticated user (inviter).
+        db (AsyncSession): Database session dependency.
+    Returns:
+        dict: Status message indicating if the invitation was sent.
+    Raises:
+        HTTPException: If invitation fails or user already exists.
+    """
     
     # Check if user already exists
     existing_user = await enhanced_user_service.get_by_username_or_email(db, email=invitation.email)
@@ -220,7 +252,16 @@ async def invite_user(
 async def get_user_profile(
     current_user: UserRead = Depends(get_current_user)
 ):
-    """Get current user profile"""
+    """
+    Retrieve the current authenticated user's profile information.
+    
+    Args:
+        current_user (UserRead): The current authenticated user from token.
+    Returns:
+        UserRead: Complete user profile information.
+    Raises:
+        HTTPException: Implicitly if user is not authenticated (via dependency).
+    """
     return current_user
 
 
@@ -230,12 +271,23 @@ async def update_user_profile(
     current_user: UserRead = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Update user profile information"""
+    """
+    Update the current authenticated user's profile information.
     
-    # Create update object
+    Args:
+        profile_update (UserProfileUpdate): Updated profile data (partial).
+        current_user (UserRead): The current authenticated user.
+        db (AsyncSession): Database session dependency.
+    Returns:
+        UserRead: Updated user profile information.
+    Raises:
+        HTTPException: If update fails or validation errors occur.
+    """
+    
+    # Create update object - only include fields that were provided
     update_data = profile_update.dict(exclude_unset=True)
     
-    # Update user
+    # Update user through the service layer
     updated_user = await enhanced_user_service.update_user(
         db, current_user.id, UserUpdate(**update_data)
     )
@@ -250,7 +302,19 @@ async def change_password(
     current_user: UserRead = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Change user password"""
+    """
+    Change the password for the currently authenticated user.
+    
+    Args:
+        request (ChangePasswordRequest): Contains current and new password.
+        background_tasks (BackgroundTasks): FastAPI background task handler.
+        current_user (UserRead): The current authenticated user.
+        db (AsyncSession): Database session dependency.
+    Returns:
+        dict: Status message indicating if the password was changed.
+    Raises:
+        HTTPException: If user is not found, current password is incorrect, or new password is too weak.
+    """
     
     # Get full user object
     user = await enhanced_user_service.get_by_id(db, current_user.id)
@@ -298,7 +362,17 @@ async def deactivate_account(
     current_user: UserRead = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Deactivate user account"""
+    """
+    Deactivate the current user's account and invalidate all active sessions.
+    
+    Args:
+        current_user (UserRead): The current authenticated user.
+        db (AsyncSession): Database session dependency.
+    Returns:
+        dict: Status message indicating the account was deactivated.
+    Raises:
+        HTTPException: If user is not found.
+    """
     
     user = await enhanced_user_service.get_by_id(db, current_user.id)
     if not user:
@@ -320,7 +394,17 @@ async def reactivate_account(
     email: str,
     db: AsyncSession = Depends(get_db)
 ):
-    """Reactivate a deactivated account (admin endpoint)"""
+    """
+    Reactivate a previously deactivated user account (admin-only endpoint).
+    
+    Args:
+        email (str): Email address of the account to reactivate.
+        db (AsyncSession): Database session dependency.
+    Returns:
+        dict: Status message indicating the account was reactivated.
+    Raises:
+        HTTPException: If user is not found or caller lacks admin privileges.
+    """
     
     user = await enhanced_user_service.get_by_username_or_email(db, email=email)
     if not user:
@@ -342,7 +426,17 @@ async def get_user_sessions(
     current_user: UserRead = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Get all active sessions for current user"""
+    """
+    Retrieve all active sessions for the currently authenticated user.
+    
+    Args:
+        current_user (UserRead): The current authenticated user.
+        db (AsyncSession): Database session dependency.
+    Returns:
+        dict: List of active sessions with their details (id, IP address, user agent, timestamps).
+    Raises:
+        HTTPException: Implicitly if user is not authenticated (via dependency).
+    """
     
     sessions = await enhanced_user_service.get_active_sessions(db, current_user.id)
     
@@ -366,7 +460,18 @@ async def terminate_session(
     current_user: UserRead = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Terminate a specific session"""
+    """
+    Terminate a specific user session by its ID.
+    
+    Args:
+        session_id (str): ID of the session to terminate.
+        current_user (UserRead): The current authenticated user.
+        db (AsyncSession): Database session dependency.
+    Returns:
+        dict: Status message indicating the session was terminated.
+    Raises:
+        HTTPException: If session is not found or doesn't belong to the current user.
+    """
     
     # Verify session belongs to current user
     sessions = await enhanced_user_service.get_active_sessions(db, current_user.id)
@@ -388,7 +493,17 @@ async def terminate_all_sessions(
     current_user: UserRead = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Terminate all sessions for current user"""
+    """
+    Terminate all active sessions for the currently authenticated user.
+    
+    Args:
+        current_user (UserRead): The current authenticated user.
+        db (AsyncSession): Database session dependency.
+    Returns:
+        dict: Status message indicating how many sessions were terminated.
+    Raises:
+        HTTPException: Implicitly if user is not authenticated (via dependency).
+    """
     
     sessions = await enhanced_user_service.get_active_sessions(db, current_user.id)
     for session in sessions:
@@ -405,7 +520,18 @@ async def get_security_events(
     current_user: UserRead = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Get security events for current user"""
+    """
+    Retrieve security events for the currently authenticated user.
+    
+    Args:
+        limit (int, optional): Maximum number of events to return. Defaults to 50.
+        current_user (UserRead): The current authenticated user.
+        db (AsyncSession): Database session dependency.
+    Returns:
+        dict: List of security events with their details (type, category, IP, risk score, etc.).
+    Raises:
+        HTTPException: Implicitly if user is not authenticated (via dependency).
+    """
     
     events = await enhanced_user_service.get_security_events(db, current_user.id, limit)
     
@@ -431,7 +557,17 @@ async def enable_mfa(
     current_user: UserRead = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Enable MFA for current user"""
+    """
+    Initiate Multi-Factor Authentication (MFA) setup for the current user.
+    
+    Args:
+        current_user (UserRead): The current authenticated user.
+        db (AsyncSession): Database session dependency.
+    Returns:
+        dict: MFA setup data including secret key, QR code for scanning, and backup codes.
+    Raises:
+        HTTPException: Implicitly if user is not authenticated (via dependency) or if MFA is already enabled.
+    """
     
     mfa_data = await enhanced_user_service.enable_mfa(db, current_user.id)
     
@@ -449,7 +585,18 @@ async def verify_mfa_setup(
     current_user: UserRead = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Verify MFA setup with a token"""
+    """
+    Verify and complete Multi-Factor Authentication (MFA) setup using a validation token.
+    
+    Args:
+        token (str): The MFA verification token from the user's authenticator app.
+        current_user (UserRead): The current authenticated user.
+        db (AsyncSession): Database session dependency.
+    Returns:
+        dict: Status message indicating MFA was successfully enabled.
+    Raises:
+        HTTPException: If the provided token is invalid or MFA setup fails.
+    """
     
     is_valid = await enhanced_user_service.verify_mfa_setup(db, current_user.id, token)
     
@@ -468,7 +615,18 @@ async def disable_mfa(
     current_user: UserRead = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Disable MFA for current user"""
+    """
+    Disable Multi-Factor Authentication (MFA) for the current user.
+    
+    Args:
+        token (str): The MFA verification token to confirm identity.
+        current_user (UserRead): The current authenticated user.
+        db (AsyncSession): Database session dependency.
+    Returns:
+        dict: Status message indicating MFA was successfully disabled.
+    Raises:
+        HTTPException: If the provided token is invalid or MFA disabling fails.
+    """
     
     user = await enhanced_user_service.get_by_id(db, current_user.id)
     if not user or not user.mfa_enabled:

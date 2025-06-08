@@ -53,8 +53,16 @@ class QueueStats(BaseModel):
 async def get_job_stats(
     session: AsyncSession = Depends(get_db)
 ) -> JobStats:
-    """Get overall job statistics"""
-    
+    """
+    Retrieve overall statistics for all jobs in the system.
+
+    Args:
+        session (AsyncSession): Database session dependency.
+    Returns:
+        JobStats: Aggregated job statistics (counts, averages, etc.).
+    Raises:
+        None: Returns empty stats on error or if table does not exist.
+    """
     try:
         # Check if procrastinate_jobs table exists
         table_check = text("""
@@ -97,17 +105,17 @@ async def get_job_stats(
         last_24h_result = await session.execute(last_24h_query)
         jobs_last_24h = last_24h_result.scalar() or 0
         
-        # Get average execution time for succeeded jobs
-        avg_time_query = text("""
-            SELECT AVG(EXTRACT(EPOCH FROM (finished_at - started_at))) as avg_time
-            FROM procrastinate_jobs 
-            WHERE status = 'succeeded' 
-            AND started_at IS NOT NULL 
-            AND finished_at IS NOT NULL
-            AND finished_at >= NOW() - INTERVAL '7 DAYS'
-        """)
-        avg_time_result = await session.execute(avg_time_query)
-        avg_execution_time = avg_time_result.scalar()
+        # Get average execution time for succeeded jobs - remove since procrastinate doesn't have timing columns
+        # avg_time_query = text("""
+        #     SELECT AVG(EXTRACT(EPOCH FROM (finished_at - started_at))) as avg_time
+        #     FROM procrastinate_jobs 
+        #     WHERE status = 'succeeded' 
+        #     AND started_at IS NOT NULL 
+        #     AND finished_at IS NOT NULL
+        #     AND finished_at >= NOW() - INTERVAL '7 DAYS'
+        # """)
+        # avg_time_result = await session.execute(avg_time_query)
+        # avg_execution_time = avg_time_result.scalar()
         
         return JobStats(
             total_jobs=sum(status_counts.values()),
@@ -118,7 +126,7 @@ async def get_job_stats(
             cancelled_jobs=status_counts.get('cancelled', 0),
             retry_jobs=status_counts.get('retry', 0),
             jobs_last_24h=jobs_last_24h,
-            average_execution_time=avg_execution_time
+            average_execution_time=None  # Not available in Procrastinate
         )
     except Exception as e:
         # Return empty stats on any error
@@ -139,8 +147,16 @@ async def get_job_stats(
 async def get_queue_stats(
     session: AsyncSession = Depends(get_db)
 ) -> List[QueueStats]:
-    """Get statistics by queue"""
-    
+    """
+    Retrieve statistics for all job queues (pending, running, failed, succeeded).
+
+    Args:
+        session (AsyncSession): Database session dependency.
+    Returns:
+        List[QueueStats]: List of statistics for each queue.
+    Raises:
+        None: Returns empty list on error or if table does not exist.
+    """
     try:
         # Check if procrastinate_jobs table exists
         table_check = text("""
@@ -161,7 +177,7 @@ async def get_queue_stats(
                 SUM(CASE WHEN status = 'todo' THEN 1 ELSE 0 END) as pending_jobs,
                 SUM(CASE WHEN status = 'doing' THEN 1 ELSE 0 END) as running_jobs,
                 SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed_jobs,
-                SUM(CASE WHEN status = 'succeeded' AND finished_at >= CURRENT_DATE THEN 1 ELSE 0 END) as succeeded_jobs_today
+                SUM(CASE WHEN status = 'succeeded' AND scheduled_at >= CURRENT_DATE THEN 1 ELSE 0 END) as succeeded_jobs_today
             FROM procrastinate_jobs 
             GROUP BY queue_name
             ORDER BY queue_name
@@ -192,8 +208,21 @@ async def list_jobs(
     offset: int = Query(0, ge=0, description="Number of jobs to skip"),
     session: AsyncSession = Depends(get_db)
 ) -> List[JobStatus]:
-    """List jobs with optional filtering"""
-    
+    """
+    Retrieve a list of jobs with optional filtering by status, queue, or task name.
+
+    Args:
+        status (Optional[str]): Filter jobs by status (e.g., todo, doing, failed).
+        queue (Optional[str]): Filter jobs by queue name.
+        task_name (Optional[str]): Filter jobs by task name (partial match).
+        limit (int): Maximum number of jobs to return.
+        offset (int): Number of jobs to skip (pagination).
+        session (AsyncSession): Database session dependency.
+    Returns:
+        List[JobStatus]: List of jobs matching the filters.
+    Raises:
+        None: Returns empty list on error or if table does not exist.
+    """
     try:
         # Check if procrastinate_jobs table exists
         table_check = text("""
@@ -233,14 +262,11 @@ async def list_jobs(
                 status,
                 queue_name,
                 scheduled_at,
-                started_at,
-                finished_at,
                 attempts,
-                args,
-                kwargs
+                args
             FROM procrastinate_jobs 
             {where_clause}
-            ORDER BY scheduled_at DESC
+            ORDER BY id DESC
             LIMIT :limit OFFSET :offset
         """)
         
@@ -255,11 +281,11 @@ async def list_jobs(
                 status=row.status,
                 queue_name=row.queue_name,
                 scheduled_at=row.scheduled_at,
-                started_at=row.started_at,
-                finished_at=row.finished_at,
+                started_at=None,  # Procrastinate doesn't have started_at
+                finished_at=None,  # Procrastinate doesn't have finished_at
                 attempts=row.attempts,
                 args=row.args or {},
-                kwargs=row.kwargs or {}
+                kwargs={}  # Empty since procrastinate combines args and kwargs
             ))
         
         return jobs
@@ -273,8 +299,17 @@ async def get_job(
     job_id: str,
     session: AsyncSession = Depends(get_db)
 ) -> JobStatus:
-    """Get detailed information about a specific job"""
-    
+    """
+    Retrieve detailed information about a specific job by its ID.
+
+    Args:
+        job_id (str): Unique ID of the job.
+        session (AsyncSession): Database session dependency.
+    Returns:
+        JobStatus: Detailed status and metadata for the job.
+    Raises:
+        HTTPException: If the job system is not initialized or job is not found.
+    """
     try:
         # Check if procrastinate_jobs table exists
         table_check = text("""
@@ -298,11 +333,8 @@ async def get_job(
                 status,
                 queue_name,
                 scheduled_at,
-                started_at,
-                finished_at,
                 attempts,
-                args,
-                kwargs
+                args
             FROM procrastinate_jobs 
             WHERE id = :job_id
         """)
@@ -322,11 +354,11 @@ async def get_job(
             status=row.status,
             queue_name=row.queue_name,
             scheduled_at=row.scheduled_at,
-            started_at=row.started_at,
-            finished_at=row.finished_at,
+            started_at=None,  # Procrastinate doesn't have started_at
+            finished_at=None,  # Procrastinate doesn't have finished_at
             attempts=row.attempts,
             args=row.args or {},
-            kwargs=row.kwargs or {}
+            kwargs={}  # Empty since procrastinate combines args and kwargs
         )
     except HTTPException:
         raise
@@ -342,8 +374,17 @@ async def retry_job(
     job_id: str,
     session: AsyncSession = Depends(get_db)
 ) -> Dict[str, str]:
-    """Retry a failed job"""
-    
+    """
+    Retry a failed or cancelled job by re-queuing it for execution.
+
+    Args:
+        job_id (str): Unique ID of the job to retry.
+        session (AsyncSession): Database session dependency.
+    Returns:
+        dict: Status message indicating retry result.
+    Raises:
+        HTTPException: If job is not found or cannot be retried.
+    """
     # Update job status to retry
     query = text("""
         UPDATE procrastinate_jobs 
@@ -371,8 +412,17 @@ async def cancel_job(
     job_id: str,
     session: AsyncSession = Depends(get_db)
 ) -> Dict[str, str]:
-    """Cancel a pending job"""
-    
+    """
+    Cancel a pending job that has not yet started execution.
+
+    Args:
+        job_id (str): Unique ID of the job to cancel.
+        session (AsyncSession): Database session dependency.
+    Returns:
+        dict: Status message indicating cancellation result.
+    Raises:
+        HTTPException: If job is not found or is not in a cancellable state.
+    """
     query = text("""
         UPDATE procrastinate_jobs 
         SET status = 'cancelled'
@@ -398,8 +448,18 @@ async def cleanup_old_jobs(
     status_filter: Optional[str] = Query("succeeded", description="Only delete jobs with this status"),
     session: AsyncSession = Depends(get_db)
 ) -> Dict[str, int]:
-    """Cleanup old completed jobs"""
-    
+    """
+    Delete completed jobs older than a specified number of days (and optional status).
+
+    Args:
+        days (int): Delete jobs older than this many days.
+        status_filter (Optional[str]): Only delete jobs with this status (e.g., succeeded, failed).
+        session (AsyncSession): Database session dependency.
+    Returns:
+        dict: Number of deleted jobs.
+    Raises:
+        None: Returns deleted count; does not raise on error.
+    """
     cutoff_date = datetime.utcnow() - timedelta(days=days)
     
     where_clause = "WHERE finished_at < :cutoff_date"
@@ -422,8 +482,14 @@ async def cleanup_old_jobs(
 
 @router.get("/ui", response_class=HTMLResponse)
 async def job_monitoring_ui():
-    """Simple HTML UI for job monitoring"""
-    
+    """
+    Render a simple HTML dashboard for job monitoring and status overview.
+
+    Returns:
+        HTMLResponse: Rendered HTML page for job monitoring.
+    Raises:
+        None.
+    """
     html_content = """
     <!DOCTYPE html>
     <html lang="en">

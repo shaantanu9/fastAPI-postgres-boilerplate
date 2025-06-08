@@ -1,6 +1,7 @@
 from typing import List, Dict, Any, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.db.models.user import User, Role, Permission, UserSession, SecurityEvent
+from app.db.models.user import User, Role, Permission, UserSession
+from app.db.models.security import SecurityEvent
 from app.core.exception_handlers import AppException
 from sqlalchemy.future import select
 from sqlalchemy.exc import SQLAlchemyError
@@ -10,7 +11,6 @@ from loguru import logger
 from fastapi import HTTPException, status, Request
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import update, delete
-from app.core.security import security_service
 from app.core.jwt import jwt_service
 from datetime import datetime, timedelta
 import json
@@ -22,11 +22,14 @@ from app.utils.concurrent_utils import parallel_io, parallel_cpu, TaskType, exec
 class EnhancedUserService:
     """Enhanced User Service with 2025 enterprise features"""
 
+    def __init__(self, security_service):
+        self.security_service = security_service
+
     async def create_user(self, db: AsyncSession, user_create: UserCreate, created_by: str = None) -> User:
         """Create a new user with enhanced security validation"""
         
         # Validate password
-        password_validation = security_service.validate_password_strength(user_create.password)
+        password_validation = self.security_service.validate_password_strength(user_create.password)
         if not password_validation["valid"]:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -46,7 +49,7 @@ class EnhancedUserService:
             )
 
         # Create user with hashed password
-        hashed_password = security_service.hash_password(user_create.password)
+        hashed_password = self.security_service.hash_password(user_create.password)
         
         user = User(
             username=user_create.username,
@@ -106,16 +109,16 @@ class EnhancedUserService:
             return None
 
         # Check if account is locked
-        if security_service.is_account_locked(user):
+        if self.security_service.is_account_locked(user):
             raise HTTPException(
                 status_code=status.HTTP_423_LOCKED,
                 detail="Account is temporarily locked due to multiple failed login attempts"
             )
 
         # Verify password
-        if not security_service.verify_password(password, user.hashed_password):
+        if not self.security_service.verify_password(password, user.hashed_password):
             # Handle failed login
-            await security_service.handle_failed_login(db, user, request)
+            await self.security_service.handle_failed_login(db, user, request)
             return None
 
         # Check if account is active
@@ -126,7 +129,7 @@ class EnhancedUserService:
             )
 
         # Handle successful login
-        await security_service.handle_successful_login(db, user, request)
+        await self.security_service.handle_successful_login(db, user, request)
         
         return user
 
@@ -234,7 +237,7 @@ class EnhancedUserService:
         for field, value in user_update.dict(exclude_unset=True).items():
             if field == "password" and value:
                 # Validate and hash new password
-                password_validation = security_service.validate_password_strength(value)
+                password_validation = self.security_service.validate_password_strength(value)
                 if not password_validation["valid"]:
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
@@ -243,7 +246,7 @@ class EnhancedUserService:
                             "errors": password_validation["errors"]
                         }
                     )
-                user.hashed_password = security_service.hash_password(value)
+                user.hashed_password = self.security_service.hash_password(value)
                 user.password_changed_at = datetime.utcnow()
             else:
                 setattr(user, field, value)
@@ -267,8 +270,8 @@ class EnhancedUserService:
             )
 
         # Generate MFA secret and backup codes
-        mfa_secret = security_service.generate_mfa_secret()
-        backup_codes = security_service.generate_backup_codes()
+        mfa_secret = self.security_service.generate_mfa_secret()
+        backup_codes = self.security_service.generate_backup_codes()
 
         user.mfa_secret = mfa_secret
         user.backup_codes = json.dumps(backup_codes)
@@ -277,7 +280,7 @@ class EnhancedUserService:
         await db.commit()
 
         # Generate QR code for setup
-        qr_code = security_service.generate_mfa_qr_code(user.email, mfa_secret)
+        qr_code = self.security_service.generate_mfa_qr_code(user.email, mfa_secret)
 
         return {
             "secret": mfa_secret,
@@ -291,7 +294,7 @@ class EnhancedUserService:
         if not user or not user.mfa_secret:
             return False
 
-        return security_service.verify_mfa_token(user.mfa_secret, token)
+        return self.security_service.verify_mfa_token(user.mfa_secret, token)
 
     async def get_security_events(self, db: AsyncSession, user_id: str, limit: int = 50) -> List[SecurityEvent]:
         """Get security events for a user"""
@@ -316,8 +319,12 @@ class EnhancedUserService:
         return hashlib.sha256(fingerprint_string.encode()).hexdigest()[:16]
 
 
-# Initialize service
-enhanced_user_service = EnhancedUserService()
+# Initialize service - import here to avoid circular import
+def get_enhanced_user_service():
+    from app.core.security import security_service
+    return EnhancedUserService(security_service=security_service)
+
+enhanced_user_service = get_enhanced_user_service()
 
 class UserService(EnhancedBaseService[User]):
     """

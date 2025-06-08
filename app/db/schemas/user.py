@@ -190,6 +190,28 @@ class PasswordResetConfirm(BaseModel):
     new_password: str
 
 
+class BackupCodePasswordReset(BaseModel):
+    """Schema for password reset using backup code"""
+    username_or_email: str
+    backup_code: str
+    new_password: constr(min_length=12, max_length=128)
+    
+    @validator('new_password')
+    def validate_password_complexity(cls, v):
+        """Basic client-side password validation"""
+        if v is None:
+            return v
+        if not any(c.isupper() for c in v):
+            raise ValueError('Password must contain at least one uppercase letter')
+        if not any(c.islower() for c in v):
+            raise ValueError('Password must contain at least one lowercase letter')
+        if not any(c.isdigit() for c in v):
+            raise ValueError('Password must contain at least one digit')
+        if not any(c in '!@#$%^&*(),.?":{}|<>' for c in v):
+            raise ValueError('Password must contain at least one special character')
+        return v
+
+
 # User invitation schemas
 class UserInvitationRequest(BaseModel):
     email: str
