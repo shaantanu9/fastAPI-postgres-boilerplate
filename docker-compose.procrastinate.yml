@@ -40,7 +40,7 @@ services:
   # Procrastinate Worker 1 - General Processing
   procrastinate_worker_general:
     build: .
-    command: python procrastinate_worker.py worker --queues user_processing data_processing notifications --concurrency 15
+    command: python queue/procrastinate/workers/procrastinate_worker.py worker --queues user_processing data_processing notifications --concurrency 15
     environment:
       - DATABASE_URL=postgresql+asyncpg://postgres:password@db:5432/fastapi_db
       - DATABASE_URL_WITHOUT_ASYNC=postgresql://postgres:password@db:5432/fastapi_db
@@ -60,7 +60,7 @@ services:
   # Procrastinate Worker 2 - File Processing
   procrastinate_worker_files:
     build: .
-    command: python procrastinate_worker.py worker --queues file_processing --concurrency 5
+    command: python queue/procrastinate/workers/procrastinate_worker.py worker --queues file_processing --concurrency 5
     environment:
       - DATABASE_URL=postgresql+asyncpg://postgres:password@db:5432/fastapi_db
       - DATABASE_URL_WITHOUT_ASYNC=postgresql://postgres:password@db:5432/fastapi_db
@@ -80,7 +80,7 @@ services:
   # Procrastinate Worker 3 - Analytics (High Priority)
   procrastinate_worker_analytics:
     build: .
-    command: python procrastinate_worker.py worker --queues analytics --concurrency 3
+    command: python queue/procrastinate/workers/procrastinate_worker.py worker --queues analytics --concurrency 3
     environment:
       - DATABASE_URL=postgresql+asyncpg://postgres:password@db:5432/fastapi_db
       - DATABASE_URL_WITHOUT_ASYNC=postgresql://postgres:password@db:5432/fastapi_db
@@ -100,7 +100,7 @@ services:
   # Procrastinate Worker 4 - Maintenance & Health Checks
   procrastinate_worker_maintenance:
     build: .
-    command: python procrastinate_worker.py worker --queues maintenance health_checks --concurrency 2
+    command: python queue/procrastinate/workers/procrastinate_worker.py worker --queues maintenance health_checks --concurrency 2
     environment:
       - DATABASE_URL=postgresql+asyncpg://postgres:password@db:5432/fastapi_db
       - DATABASE_URL_WITHOUT_ASYNC=postgresql://postgres:password@db:5432/fastapi_db

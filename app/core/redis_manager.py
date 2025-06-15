@@ -30,6 +30,7 @@ class RedisNamespace(str, Enum):
     TASK_QUEUE = "task_queue"
     FEATURE_FLAGS = "feature_flags"
     MONITORING = "monitoring"
+    SYSTEM = "system"
 
 
 class CacheStrategy(str, Enum):
@@ -416,13 +417,57 @@ class EnterpriseRedisManager:
             logger.info(f"Cleaned up {len(expired_keys)} expired cache entries")
 
     async def close(self) -> None:
-        """Close Redis connections."""
-        try:
-            if self.redis_client:
+        """Close Redis connection and cleanup resources"""
+        self._is_healthy = False
+        
+        if self.redis_client:
+            try:
+                # Cancel any pending operations
+                if hasattr(self.redis_client, 'connection_pool'):
+                    pool = self.redis_client.connection_pool
+                    await pool.disconnect()
+                
                 await self.redis_client.close()
-                logger.info("Redis connections closed")
+                logger.info("Redis connection closed successfully")
+            except Exception as e:
+                logger.error(f"Error closing Redis connection: {e}")
+            finally:
+                self.redis_client = None
+
+    async def __aenter__(self):
+        """Async context manager entry"""
+        await self.initialize()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Async context manager exit with cleanup"""
+        await self.close()
+
+    async def health_check(self) -> bool:
+        """Perform comprehensive health check"""
+        if not self.redis_client:
+            return False
+            
+        try:
+            # Test basic connection
+            await self.redis_client.ping()
+            
+            # Test read/write operations
+            test_key = f"{RedisNamespace.SYSTEM.value}:health_check"
+            await self.redis_client.set(test_key, "ok", ex=5)
+            result = await self.redis_client.get(test_key)
+            
+            if result != "ok":
+                return False
+                
+            await self.redis_client.delete(test_key)
+            self._is_healthy = True
+            return True
+            
         except Exception as e:
-            logger.error(f"Error closing Redis connections: {e}")
+            logger.error(f"Redis health check failed: {e}")
+            self._is_healthy = False
+            return False
 
 
 # ====================

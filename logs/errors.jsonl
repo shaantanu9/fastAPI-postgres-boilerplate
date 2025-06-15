@@ -1,0 +1,167 @@
+{"timestamp":"2025-06-11T17:59:42.747754","method":"GET","path":"/api/v1/customers/","status_code":400,"execution_time_ms":2.5,"error":null,"user_agent":"testclient"}
+{"timestamp":"2025-06-11T17:59:42.761025","method":"GET","path":"/api/v1/orders/","status_code":400,"execution_time_ms":1.58,"error":null,"user_agent":"testclient"}
+{"timestamp":"2025-06-11T17:59:42.776777","method":"GET","path":"/openapi.json","status_code":404,"execution_time_ms":0.66,"error":null,"user_agent":"testclient"}
+{"timestamp":"2025-06-13T19:47:45.929248","method":"GET","path":"/openapi.json","status_code":404,"execution_time_ms":0.49,"error":null,"user_agent":"curl/8.7.1"}
+{"timestamp":"2025-06-13T19:49:02.200013","method":"POST","path":"/api/v1/user-management/reset-password","status_code":404,"execution_time_ms":4.11,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-13T19:49:02.204630","method":"POST","path":"/api/v1/auth/password/forgot","status_code":500,"execution_time_ms":0.94,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-13T19:56:24.710298","method":"POST","path":"/api/v1/auth/register","status_code":500,"execution_time_ms":2.02,"error":"name 'security_service' is not defined","user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-13T19:56:25.243082","method":"POST","path":"/api/v1/auth/login","status_code":500,"execution_time_ms":1.33,"error":"name 'security_service' is not defined","user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-13T19:56:25.264132","method":"POST","path":"/api/v1/auth/login","status_code":500,"execution_time_ms":1.37,"error":"name 'security_service' is not defined","user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-13T20:23:29.552707","method":"POST","path":"/api/v1/auth/register","status_code":500,"execution_time_ms":2.5,"error":"name 'security_service' is not defined","user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-13T20:23:30.088786","method":"POST","path":"/api/v1/auth/login","status_code":500,"execution_time_ms":1.99,"error":"name 'security_service' is not defined","user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-13T20:23:52.451368","method":"POST","path":"/api/v1/auth/register","status_code":500,"execution_time_ms":1.6,"error":"name 'security_service' is not defined","user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-13T20:23:52.978323","method":"POST","path":"/api/v1/auth/login","status_code":500,"execution_time_ms":1.46,"error":"name 'security_service' is not defined","user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-13T20:30:51.285278","method":"POST","path":"/api/v1/auth/register","status_code":500,"execution_time_ms":1.37,"error":"name 'security_service' is not defined","user_agent":"python-httpx/0.28.1"}
+{"timestamp":"2025-06-13T20:30:51.330013","method":"POST","path":"/api/v1/auth/register","status_code":500,"execution_time_ms":0.97,"error":"name 'security_service' is not defined","user_agent":"python-httpx/0.28.1"}
+{"timestamp":"2025-06-13T20:30:51.346865","method":"POST","path":"/api/v1/auth/login","status_code":500,"execution_time_ms":1.47,"error":"name 'security_service' is not defined","user_agent":"python-httpx/0.28.1"}
+{"timestamp":"2025-06-13T20:34:50.734330","method":"POST","path":"/api/v1/auth/register","status_code":500,"execution_time_ms":2.77,"error":"name 'security_service' is not defined","user_agent":"python-httpx/0.28.1"}
+{"timestamp":"2025-06-13T20:34:50.774333","method":"POST","path":"/api/v1/auth/register","status_code":500,"execution_time_ms":0.97,"error":"name 'security_service' is not defined","user_agent":"python-httpx/0.28.1"}
+{"timestamp":"2025-06-13T20:34:50.789437","method":"POST","path":"/api/v1/auth/login","status_code":500,"execution_time_ms":1.44,"error":"name 'security_service' is not defined","user_agent":"python-httpx/0.28.1"}
+{"timestamp":"2025-06-13T20:35:19.939234","method":"POST","path":"/api/v1/auth/register","status_code":400,"execution_time_ms":7.29,"error":null,"user_agent":"python-httpx/0.28.1"}
+{"timestamp":"2025-06-13T20:35:19.956775","method":"POST","path":"/api/v1/auth/register","status_code":422,"execution_time_ms":1.37,"error":null,"user_agent":"python-httpx/0.28.1"}
+{"timestamp":"2025-06-13T20:35:19.962326","method":"POST","path":"/api/v1/auth/login","status_code":422,"execution_time_ms":2.05,"error":null,"user_agent":"python-httpx/0.28.1"}
+{"timestamp":"2025-06-13T20:35:44.893577","method":"POST","path":"/api/v1/auth/register","status_code":400,"execution_time_ms":2.61,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-13T20:35:45.408203","method":"POST","path":"/api/v1/auth/login","status_code":422,"execution_time_ms":2.98,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-13T20:37:44.627423","method":"POST","path":"/api/v1/auth/register","status_code":400,"execution_time_ms":6.46,"error":null,"user_agent":"python-httpx/0.28.1"}
+{"timestamp":"2025-06-14T14:55:30.800028","method":"POST","path":"/api/v1/auth/register","status_code":400,"execution_time_ms":9.9,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T14:55:31.315449","method":"POST","path":"/api/v1/auth/login","status_code":422,"execution_time_ms":3.48,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T15:00:10.340368","method":"GET","path":"/api/v1/","status_code":404,"execution_time_ms":0.46,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T15:00:11.409687","method":"POST","path":"/api/v1/auth/register","status_code":500,"execution_time_ms":559.15,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T15:00:11.925065","method":"POST","path":"/api/v1/auth/login","status_code":500,"execution_time_ms":2.13,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T15:00:12.439585","method":"POST","path":"/api/v1/auth/token","status_code":500,"execution_time_ms":3.1,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T15:02:39.024286","method":"GET","path":"/api/v1/","status_code":404,"execution_time_ms":0.45,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T15:02:39.884694","method":"POST","path":"/api/v1/auth/register","status_code":500,"execution_time_ms":345.95,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T15:02:40.438820","method":"POST","path":"/api/v1/auth/login","status_code":500,"execution_time_ms":8.82,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T15:02:40.954690","method":"POST","path":"/api/v1/auth/token","status_code":500,"execution_time_ms":7.49,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T15:03:37.099014","method":"GET","path":"/api/v1/","status_code":404,"execution_time_ms":0.39,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T15:03:37.962661","method":"POST","path":"/api/v1/auth/register","status_code":500,"execution_time_ms":334.61,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T15:03:38.486150","method":"POST","path":"/api/v1/auth/login","status_code":500,"execution_time_ms":12.28,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T15:03:39.007938","method":"POST","path":"/api/v1/auth/token","status_code":500,"execution_time_ms":8.53,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T15:21:17.453715","method":"GET","path":"/api/v1/","status_code":404,"execution_time_ms":0.46,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T15:21:19.072002","method":"POST","path":"/api/v1/auth/login","status_code":500,"execution_time_ms":256.02,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T15:21:19.832971","method":"POST","path":"/api/v1/auth/token","status_code":500,"execution_time_ms":250.23,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T15:24:09.004227","method":"GET","path":"/api/v1/","status_code":404,"execution_time_ms":0.43,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T15:24:12.153154","method":"GET","path":"/api/v1/auth/me","status_code":404,"execution_time_ms":0.45,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T15:24:12.159458","method":"GET","path":"/api/v1/auth/profile","status_code":404,"execution_time_ms":0.5,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T15:24:12.180639","method":"GET","path":"/api/v1/users/me","status_code":404,"execution_time_ms":14.81,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T15:24:12.707256","method":"POST","path":"/api/v1/auth/refresh","status_code":401,"execution_time_ms":1.47,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T15:24:13.286143","method":"GET","path":"/api/v1/test-items","status_code":404,"execution_time_ms":0.45,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T15:24:14.346601","method":"GET","path":"/api/v1/auth/me/sessions","status_code":404,"execution_time_ms":1.41,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T15:29:06.450030","method":"GET","path":"/api/v1/","status_code":404,"execution_time_ms":0.4,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T15:29:09.340305","method":"GET","path":"/api/v1/auth/me","status_code":404,"execution_time_ms":0.49,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T15:29:09.344571","method":"GET","path":"/api/v1/auth/profile","status_code":404,"execution_time_ms":0.79,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T15:29:09.354656","method":"GET","path":"/api/v1/users/me","status_code":404,"execution_time_ms":5.43,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T15:29:09.919739","method":"GET","path":"/api/v1/auth/me","status_code":404,"execution_time_ms":5.91,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T15:29:10.531904","method":"GET","path":"/api/v1/test-items","status_code":404,"execution_time_ms":0.89,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T15:29:11.570921","method":"GET","path":"/api/v1/auth/me/sessions","status_code":404,"execution_time_ms":0.49,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T15:33:36.327268","method":"GET","path":"/api/v1/auth/me","status_code":404,"execution_time_ms":0.81,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T15:33:36.331676","method":"GET","path":"/api/v1/auth/me/sessions","status_code":404,"execution_time_ms":0.41,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T15:33:36.336887","method":"GET","path":"/api/v1/auth/refresh","status_code":405,"execution_time_ms":0.34,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T15:33:36.340372","method":"GET","path":"/api/v1/auth/login","status_code":405,"execution_time_ms":0.29,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T15:33:36.347694","method":"GET","path":"/api/v1/user-management/sessions","status_code":401,"execution_time_ms":1.21,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T15:33:36.352726","method":"GET","path":"/api/v1/user-management/profile","status_code":401,"execution_time_ms":0.78,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T15:33:36.359675","method":"GET","path":"/openapi.json","status_code":404,"execution_time_ms":0.56,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T15:33:36.362999","method":"GET","path":"/openapi.json","status_code":404,"execution_time_ms":0.36,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T15:33:36.375398","method":"POST","path":"/api/v1/auth/register","status_code":400,"execution_time_ms":9.76,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T15:35:19.029578","method":"GET","path":"/api/v1/auth/me","status_code":401,"execution_time_ms":0.92,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T15:35:19.035842","method":"GET","path":"/api/v1/auth/me/sessions","status_code":401,"execution_time_ms":0.54,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T15:35:19.040420","method":"GET","path":"/api/v1/auth/refresh","status_code":405,"execution_time_ms":0.36,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T15:35:19.048149","method":"GET","path":"/api/v1/auth/login","status_code":405,"execution_time_ms":0.29,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T15:35:19.052572","method":"GET","path":"/api/v1/user-management/sessions","status_code":401,"execution_time_ms":0.79,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T15:35:19.058277","method":"GET","path":"/api/v1/user-management/profile","status_code":401,"execution_time_ms":0.49,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T15:35:19.064852","method":"GET","path":"/openapi.json","status_code":404,"execution_time_ms":0.4,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T15:35:19.068047","method":"GET","path":"/openapi.json","status_code":404,"execution_time_ms":0.9,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T15:35:19.080172","method":"POST","path":"/api/v1/auth/register","status_code":400,"execution_time_ms":8.39,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T15:36:20.453222","method":"GET","path":"/api/v1/auth/me","status_code":401,"execution_time_ms":0.91,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T15:36:20.459775","method":"GET","path":"/api/v1/auth/me/sessions","status_code":401,"execution_time_ms":0.39,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T15:36:20.463258","method":"GET","path":"/api/v1/auth/refresh","status_code":405,"execution_time_ms":0.39,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T15:36:20.466563","method":"GET","path":"/api/v1/auth/login","status_code":405,"execution_time_ms":0.3,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T15:36:20.470610","method":"GET","path":"/api/v1/user-management/sessions","status_code":401,"execution_time_ms":0.42,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T15:36:20.475449","method":"GET","path":"/api/v1/user-management/profile","status_code":401,"execution_time_ms":0.83,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T15:36:20.481877","method":"GET","path":"/openapi.json","status_code":404,"execution_time_ms":0.44,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T15:36:20.484816","method":"GET","path":"/openapi.json","status_code":404,"execution_time_ms":0.59,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T15:36:21.069981","method":"GET","path":"/api/v1/auth/me","status_code":500,"execution_time_ms":7.16,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T15:56:31.645296","method":"GET","path":"/api/v1/","status_code":404,"execution_time_ms":0.45,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T15:56:34.394994","method":"GET","path":"/api/v1/auth/me","status_code":500,"execution_time_ms":7.16,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T15:56:34.401364","method":"GET","path":"/api/v1/auth/profile","status_code":404,"execution_time_ms":0.67,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T15:56:34.412293","method":"GET","path":"/api/v1/users/me","status_code":404,"execution_time_ms":6.34,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T15:56:34.961160","method":"GET","path":"/api/v1/auth/me","status_code":500,"execution_time_ms":10.46,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T15:56:35.649861","method":"GET","path":"/api/v1/test-items","status_code":404,"execution_time_ms":0.55,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T16:07:24.173902","method":"POST","path":"/api/v1/user-management/register","status_code":404,"execution_time_ms":0.4,"error":null,"user_agent":"Python/3.13 aiohttp/3.12.6"}
+{"timestamp":"2025-06-14T16:07:24.179059","method":"POST","path":"/api/v1/auth/login","status_code":422,"execution_time_ms":1.91,"error":null,"user_agent":"Python/3.13 aiohttp/3.12.6"}
+{"timestamp":"2025-06-14T16:07:24.254412","method":"GET","path":"/api/v1/test-items/","status_code":404,"execution_time_ms":0.38,"error":null,"user_agent":"Python/3.13 aiohttp/3.12.6"}
+{"timestamp":"2025-06-14T16:09:00.224017","method":"POST","path":"/api/v1/auth/register","status_code":400,"execution_time_ms":7.51,"error":null,"user_agent":"Python/3.13 aiohttp/3.12.6"}
+{"timestamp":"2025-06-14T16:09:00.280151","method":"POST","path":"/api/v1/auth/login","status_code":401,"execution_time_ms":52.49,"error":null,"user_agent":"Python/3.13 aiohttp/3.12.6"}
+{"timestamp":"2025-06-14T16:10:38.873264","method":"POST","path":"/api/v1/auth/register","status_code":400,"execution_time_ms":9.15,"error":null,"user_agent":"Python/3.13 aiohttp/3.12.6"}
+{"timestamp":"2025-06-14T16:10:38.933230","method":"POST","path":"/api/v1/auth/login","status_code":401,"execution_time_ms":56.54,"error":null,"user_agent":"Python/3.13 aiohttp/3.12.6"}
+{"timestamp":"2025-06-14T16:22:00.818580","method":"POST","path":"/sse","status_code":404,"execution_time_ms":2.31,"error":null,"user_agent":"Cursor/1.1.2 (darwin arm64)"}
+{"timestamp":"2025-06-14T16:22:00.910130","method":"GET","path":"/sse","status_code":404,"execution_time_ms":1.42,"error":null,"user_agent":"node"}
+{"timestamp":"2025-06-14T16:22:04.730297","method":"POST","path":"/sse","status_code":404,"execution_time_ms":1.21,"error":null,"user_agent":"Cursor/1.1.2 (darwin arm64)"}
+{"timestamp":"2025-06-14T16:22:04.811874","method":"POST","path":"/sse","status_code":404,"execution_time_ms":1.35,"error":null,"user_agent":"Cursor/1.1.2 (darwin arm64)"}
+{"timestamp":"2025-06-14T16:22:04.922018","method":"POST","path":"/mcp","status_code":404,"execution_time_ms":1.48,"error":null,"user_agent":"Cursor/1.1.2 (darwin arm64)"}
+{"timestamp":"2025-06-14T16:22:04.989233","method":"GET","path":"/sse","status_code":404,"execution_time_ms":1.31,"error":null,"user_agent":"node"}
+{"timestamp":"2025-06-14T16:22:05.501368","method":"GET","path":"/sse","status_code":404,"execution_time_ms":1.45,"error":null,"user_agent":"node"}
+{"timestamp":"2025-06-14T16:22:05.777933","method":"POST","path":"/mcp","status_code":404,"execution_time_ms":1.44,"error":null,"user_agent":"Cursor/1.1.2 (darwin arm64)"}
+{"timestamp":"2025-06-14T16:22:05.792559","method":"GET","path":"/mcp","status_code":404,"execution_time_ms":1.63,"error":null,"user_agent":"node"}
+{"timestamp":"2025-06-14T16:22:05.918595","method":"POST","path":"/mcp","status_code":404,"execution_time_ms":1.34,"error":null,"user_agent":"Cursor/1.1.2 (darwin arm64)"}
+{"timestamp":"2025-06-14T16:22:05.927787","method":"GET","path":"/mcp","status_code":404,"execution_time_ms":1.15,"error":null,"user_agent":"node"}
+{"timestamp":"2025-06-14T16:22:09.138098","method":"GET","path":"/mcp","status_code":404,"execution_time_ms":1.26,"error":null,"user_agent":"node"}
+{"timestamp":"2025-06-14T16:22:10.352178","method":"POST","path":"/mcp","status_code":404,"execution_time_ms":1.4,"error":null,"user_agent":"node"}
+{"timestamp":"2025-06-14T16:22:10.371092","method":"GET","path":"/mcp","status_code":404,"execution_time_ms":1.23,"error":null,"user_agent":"node"}
+{"timestamp":"2025-06-14T16:22:10.667493","method":"POST","path":"/mcp","status_code":404,"execution_time_ms":1.06,"error":null,"user_agent":"node"}
+{"timestamp":"2025-06-14T16:22:10.684668","method":"GET","path":"/mcp","status_code":404,"execution_time_ms":1.07,"error":null,"user_agent":"node"}
+{"timestamp":"2025-06-14T16:22:11.234885","method":"POST","path":"/mcp","status_code":404,"execution_time_ms":2.17,"error":null,"user_agent":"node"}
+{"timestamp":"2025-06-14T16:22:11.249714","method":"GET","path":"/mcp","status_code":404,"execution_time_ms":1.61,"error":null,"user_agent":"node"}
+{"timestamp":"2025-06-14T17:18:57.591605","method":"GET","path":"/api/v1/","status_code":404,"execution_time_ms":4.04,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T17:19:00.311276","method":"GET","path":"/api/v1/auth/me","status_code":500,"execution_time_ms":13.88,"error":"[Errno 5] Input/output error","user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T17:19:00.342075","method":"GET","path":"/api/v1/auth/profile","status_code":404,"execution_time_ms":0.58,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T17:19:00.354239","method":"GET","path":"/api/v1/users/me","status_code":404,"execution_time_ms":7.52,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T17:19:00.914402","method":"GET","path":"/api/v1/auth/me","status_code":500,"execution_time_ms":10.99,"error":"[Errno 5] Input/output error","user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T17:19:01.543047","method":"GET","path":"/api/v1/test-items","status_code":404,"execution_time_ms":0.7,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T17:19:24.413526","method":"GET","path":"/api/v1/","status_code":404,"execution_time_ms":1.56,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T17:19:27.008943","method":"GET","path":"/api/v1/auth/me","status_code":500,"execution_time_ms":8.47,"error":"[Errno 5] Input/output error","user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T17:19:27.032430","method":"GET","path":"/api/v1/auth/profile","status_code":404,"execution_time_ms":0.49,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T17:19:27.044289","method":"GET","path":"/api/v1/users/me","status_code":404,"execution_time_ms":6.59,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T17:19:27.603774","method":"GET","path":"/api/v1/auth/me","status_code":500,"execution_time_ms":11.22,"error":"[Errno 5] Input/output error","user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T17:19:28.227350","method":"GET","path":"/api/v1/test-items","status_code":404,"execution_time_ms":0.99,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T17:23:40.626765","method":"POST","path":"/sse","status_code":404,"execution_time_ms":1.82,"error":null,"user_agent":"Cursor/1.1.2 (darwin arm64)"}
+{"timestamp":"2025-06-14T17:23:41.196567","method":"GET","path":"/sse","status_code":404,"execution_time_ms":1.33,"error":null,"user_agent":"node"}
+{"timestamp":"2025-06-14T17:23:41.869196","method":"POST","path":"/mcp","status_code":404,"execution_time_ms":7.45,"error":null,"user_agent":"Cursor/1.1.2 (darwin arm64)"}
+{"timestamp":"2025-06-14T17:23:41.883659","method":"GET","path":"/mcp","status_code":404,"execution_time_ms":1.14,"error":null,"user_agent":"node"}
+{"timestamp":"2025-06-14T17:23:44.721199","method":"POST","path":"/mcp","status_code":404,"execution_time_ms":1.25,"error":null,"user_agent":"node"}
+{"timestamp":"2025-06-14T17:23:44.752027","method":"GET","path":"/mcp","status_code":404,"execution_time_ms":1.13,"error":null,"user_agent":"node"}
+{"timestamp":"2025-06-14T17:24:25.566509","method":"GET","path":"/api/v1/","status_code":404,"execution_time_ms":1.34,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T17:24:28.182923","method":"GET","path":"/api/v1/auth/me","status_code":500,"execution_time_ms":14.21,"error":"[Errno 5] Input/output error","user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T17:24:28.217192","method":"GET","path":"/api/v1/auth/profile","status_code":404,"execution_time_ms":0.98,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T17:24:28.229351","method":"GET","path":"/api/v1/users/me","status_code":404,"execution_time_ms":6.21,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T17:24:28.788297","method":"GET","path":"/api/v1/auth/me","status_code":500,"execution_time_ms":9.99,"error":"[Errno 5] Input/output error","user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T17:24:29.373427","method":"GET","path":"/api/v1/test-items","status_code":404,"execution_time_ms":0.4,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T17:24:37.079394","method":"GET","path":"/api/v1/","status_code":404,"execution_time_ms":0.92,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T17:24:39.684061","method":"GET","path":"/api/v1/auth/me","status_code":500,"execution_time_ms":11.92,"error":"[Errno 5] Input/output error","user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T17:24:39.708399","method":"GET","path":"/api/v1/auth/profile","status_code":404,"execution_time_ms":0.96,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T17:24:39.716756","method":"GET","path":"/api/v1/users/me","status_code":404,"execution_time_ms":4.02,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T17:24:40.264299","method":"GET","path":"/api/v1/auth/me","status_code":500,"execution_time_ms":6.85,"error":"[Errno 5] Input/output error","user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T17:24:40.850782","method":"GET","path":"/api/v1/test-items","status_code":404,"execution_time_ms":0.59,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T17:26:33.547140","method":"POST","path":"/api/v1/auth/register","status_code":400,"execution_time_ms":3.81,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T17:26:53.581836","method":"GET","path":"/api/v1/auth/me","status_code":500,"execution_time_ms":4.26,"error":"[Errno 5] Input/output error","user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T17:27:26.982379","method":"GET","path":"/api/v1/user-management/profile","status_code":401,"execution_time_ms":0.96,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T17:27:26.994287","method":"POST","path":"/api/v1/auth/refresh","status_code":401,"execution_time_ms":2.62,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T17:27:52.108069","method":"GET","path":"/api/v1/","status_code":404,"execution_time_ms":1.36,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T17:27:54.767923","method":"GET","path":"/api/v1/auth/me","status_code":500,"execution_time_ms":10.73,"error":"[Errno 5] Input/output error","user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T17:27:54.795801","method":"GET","path":"/api/v1/auth/profile","status_code":404,"execution_time_ms":0.96,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T17:27:54.809011","method":"GET","path":"/api/v1/users/me","status_code":404,"execution_time_ms":6.84,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T17:27:55.951070","method":"GET","path":"/api/v1/test-items","status_code":404,"execution_time_ms":0.7,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T17:49:50.457612","method":"GET","path":"/api/v1/","status_code":404,"execution_time_ms":1.37,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T17:49:50.985876","method":"POST","path":"/api/v1/auth/register","status_code":422,"execution_time_ms":10.13,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T17:49:51.522710","method":"POST","path":"/api/v1/auth/login","status_code":401,"execution_time_ms":14.38,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T17:49:52.056653","method":"POST","path":"/api/v1/auth/token","status_code":401,"execution_time_ms":9.72,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T17:50:39.468520","method":"GET","path":"/api/v1/","status_code":404,"execution_time_ms":1.17,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T17:50:42.056728","method":"GET","path":"/api/v1/auth/me","status_code":500,"execution_time_ms":13.52,"error":"[Errno 5] Input/output error","user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T17:50:42.088998","method":"GET","path":"/api/v1/auth/profile","status_code":404,"execution_time_ms":0.89,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T17:50:42.104771","method":"GET","path":"/api/v1/users/me","status_code":404,"execution_time_ms":8.33,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T17:50:43.243180","method":"GET","path":"/api/v1/test-items","status_code":404,"execution_time_ms":0.44,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T17:51:19.576558","method":"GET","path":"/api/v1/","status_code":404,"execution_time_ms":2.68,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T17:51:22.177849","method":"GET","path":"/api/v1/auth/me","status_code":500,"execution_time_ms":10.98,"error":"[Errno 5] Input/output error","user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T17:51:22.200115","method":"GET","path":"/api/v1/auth/profile","status_code":404,"execution_time_ms":0.95,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T17:51:22.209688","method":"GET","path":"/api/v1/users/me","status_code":404,"execution_time_ms":4.75,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-14T17:51:23.362671","method":"GET","path":"/api/v1/test-items","status_code":404,"execution_time_ms":0.95,"error":null,"user_agent":"python-requests/2.32.3"}

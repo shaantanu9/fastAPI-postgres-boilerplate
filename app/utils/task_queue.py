@@ -171,17 +171,40 @@ class EnhancedAsyncTaskQueue:
             self.worker_count = worker_count
             logger.info(f"Started task queue with {worker_count} workers")
 
-    def stop(self) -> None:
-        """Stop the task queue and all workers."""
+    async def stop(self) -> None:
+        """Stop the task queue and all workers gracefully."""
+        if not self.running:
+            return
+            
+        logger.info("Stopping task queue...")
         self.running = False
 
         # Cancel all workers
         for worker in self.workers:
             worker.cancel()
 
+        # Wait for workers to finish with timeout
+        if self.workers:
+            try:
+                await asyncio.wait_for(
+                    asyncio.gather(*self.workers, return_exceptions=True),
+                    timeout=5.0
+                )
+            except TimeoutError:
+                logger.warning("Some workers didn't stop within timeout")
+
         self.workers.clear()
         self.worker_count = 0
-        logger.info("Task queue stopped")
+        
+        # Clear pending tasks
+        while not self.queue.empty():
+            try:
+                self.queue.get_nowait()
+                self.queue.task_done()
+            except asyncio.QueueEmpty:
+                break
+                
+        logger.info("Task queue stopped gracefully")
 
     async def add_task(
         self,

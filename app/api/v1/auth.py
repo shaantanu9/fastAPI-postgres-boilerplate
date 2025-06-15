@@ -20,7 +20,7 @@ from app.db.schemas.user import (
     UserWithRoles,
 )
 from app.db.session import get_db
-from app.services.user_service import enhanced_user_service
+from app.services.auth_service import enhanced_user_service
 
 router = APIRouter()
 
@@ -310,11 +310,16 @@ async def get_user_sessions(
 ):
     """Get all active sessions for the current user."""
     try:
-        return await enhanced_user_service.get_active_sessions(db, current_user.id)
-    except Exception:
+        sessions = await enhanced_user_service.get_active_sessions(db, current_user.id)
+        # Convert SQLAlchemy models to Pydantic models
+        return [UserSessionRead.from_orm(session) for session in sessions]
+    except Exception as e:
+        # For debugging - show actual error
+        import traceback
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to get user sessions",
+            detail=f"Failed to get user sessions: {str(e)}",
         )
 
 
@@ -388,11 +393,13 @@ async def get_current_user(
                 detail="User account is disabled",
             )
 
-        return user
+        # Convert SQLAlchemy model to Pydantic model
+        return UserRead.from_orm(user)
 
     except HTTPException:
         raise
-    except Exception:
+    except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Token validation failed",
+            status_code=status.HTTP_401_UNAUTHORIZED, 
+            detail=f"Token validation failed: {str(e)}",
         )

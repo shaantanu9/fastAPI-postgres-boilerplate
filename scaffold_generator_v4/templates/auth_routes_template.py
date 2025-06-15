@@ -1,13 +1,39 @@
-"""Enhanced FastAPI routes template with authentication and authorization."""
-
+"""
+Enhanced FastAPI routes template with authentication and authorization
+"""
+from typing import List, Dict, Any
 import re
-from typing import Any
+
+# Conditional imports for standalone operation
+try:
+    from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+    from sqlalchemy.ext.asyncio import AsyncSession
+    from app.db.session import get_db
+    from app.api.v1.endpoints.auth import get_current_user
+    from app.core.security import security_service
+    FASTAPI_AVAILABLE = True
+except ImportError:
+    # Fallback for standalone testing
+    FASTAPI_AVAILABLE = False
+    # Create dummy classes for template generation
+    class APIRouter: pass
+    class Depends: pass
+    class HTTPException: pass
+    class Query: pass
+    class Request: pass
+    class AsyncSession: pass
+    def get_db(): pass
+    def get_current_user(): pass
+    class security_service: pass
+    class status:
+        HTTP_200_OK = 200
+        HTTP_201_CREATED = 201
+        HTTP_404_NOT_FOUND = 404
 
 # Optional rate limiting
 try:
     from slowapi import Limiter, _rate_limit_exceeded_handler
     from slowapi.util import get_remote_address
-
     limiter = Limiter(key_func=get_remote_address)
     HAS_RATE_LIMITING = True
 except ImportError:
@@ -16,27 +42,20 @@ except ImportError:
         def limit(self, rate):
             def decorator(func):
                 return func
-
             return decorator
-
     limiter = DummyLimiter()
     HAS_RATE_LIMITING = False
 
 
 class AuthRoutesTemplate:
-    """Generates FastAPI routes templates with enterprise authentication."""
-
-    def generate(
-        self,
-        model_name: str,
-        fields: list[dict[str, Any]],
-        auth_config: dict[str, Any] | None = None,
-        with_bulk: bool = False,
-    ) -> str:
-        """Generate FastAPI routes file content with authentication."""
-        snake_name = re.sub(r"(?<!^)(?=[A-Z])", "_", model_name).lower()
+    """Generates FastAPI routes templates with enterprise authentication"""
+    
+    def generate(self, model_name: str, fields: List[Dict[str, Any]], 
+                auth_config: Dict[str, Any] = None, with_bulk: bool = False) -> str:
+        """Generate FastAPI routes file content with authentication"""
+        snake_name = re.sub(r'(?<!^)(?=[A-Z])', '_', model_name).lower()
         pascal_name = model_name
-
+        
         # Default auth configuration
         if auth_config is None:
             auth_config = {
@@ -46,27 +65,25 @@ class AuthRoutesTemplate:
                 "enable_audit": True,
                 "enable_rate_limiting": True,
                 "owner_based_access": False,
-                "simple_token_auth": True,  # Use get_current_user directly
+                "simple_token_auth": True  # Use get_current_user directly
             }
-
+        
         # Generate authentication imports and dependencies
-        self._generate_auth_imports(auth_config)
+        auth_imports = self._generate_auth_imports(auth_config)
         auth_dependencies = self._generate_auth_dependencies(auth_config, snake_name)
-
+        
         # Generate rate limiting decorators
         rate_limiting = self._generate_rate_limiting(auth_config, snake_name)
-
+        
         # Generate bulk routes with auth
         bulk_routes = ""
         if with_bulk:
-            bulk_routes = self._generate_bulk_routes(
-                pascal_name, snake_name, auth_config,
-            )
-
+            bulk_routes = self._generate_bulk_routes(pascal_name, snake_name, auth_config)
+        
         # Generate audit logging helpers
         audit_helpers = self._generate_audit_helpers(auth_config)
-
-        return f'''"""
+        
+        template = f'''"""
 {pascal_name} FastAPI routes with Enterprise Authentication
 """
 from typing import List
@@ -74,7 +91,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import get_db
 from app.api.v1.endpoints.auth import get_current_user
-from app.core.security import require_permission, require_role, security_service, get_current_active_user
+from app.core.security import security_service
+# Note: require_permission, require_role, get_current_active_user not available yet
 
 # Optional rate limiting
 try:
@@ -93,8 +111,8 @@ except ImportError:
     HAS_RATE_LIMITING = False
 
 from .schemas import (
-    {pascal_name}Create,
-    {pascal_name}Update,
+    {pascal_name}Create, 
+    {pascal_name}Update, 
     {pascal_name}Response,
     {pascal_name}Search
 )
@@ -103,52 +121,52 @@ from .services import {pascal_name}Service
 
 class {pascal_name}Routes:
     """FastAPI routes for {pascal_name} with enterprise security"""
-
+    
     def __init__(self):
         self.router = APIRouter()
         self.service = {pascal_name}Service()
         self.setup_routes()
-
+    
     def setup_routes(self):
         """Setup CRUD routes for {pascal_name} with authentication"""
-
+        
         @self.router.post("/{snake_name}s/", response_model={pascal_name}Response, tags=["{pascal_name}"])
-        {rate_limiting.get("create", "")}
+        {rate_limiting.get('create', '')}
         async def create_{snake_name}(
             item: {pascal_name}Create,
             request: Request,
-            {auth_dependencies.get("create", "current_user = Depends(get_current_user)")},
+            {auth_dependencies.get('create', 'current_user = Depends(get_current_user)')},
             db: AsyncSession = Depends(get_db)
         ):
             \"\"\"Create a new {snake_name}\"\"\"
             try:
                 # Security: Check permissions
-                {self._generate_permission_check(auth_config, snake_name, "create")}
-
+                {self._generate_permission_check(auth_config, snake_name, 'create')}
+                
                 # Create the item
                 result = await self.service.create(**item.dict())
-
+                
                 # Audit logging
-                {self._generate_audit_log(auth_config, snake_name, "create")}
-
+                {self._generate_audit_log(auth_config, snake_name, 'create')}
+                
                 # Emit creation event
-                self.emit_event("{snake_name}_created",
-                              id=result.id,
+                self.emit_event("{snake_name}_created", 
+                              id=result.id, 
                               user_id=current_user.id,
                               plugin="{snake_name}_plugin")
-
+                
                 return result
             except HTTPException:
                 raise
             except Exception as e:
-                {self._generate_audit_log(auth_config, snake_name, "create_failed")}
+                {self._generate_audit_log(auth_config, snake_name, 'create_failed')}
                 raise HTTPException(status_code=400, detail=str(e))
-
+        
         @self.router.get("/{snake_name}s/", response_model=List[{pascal_name}Response], tags=["{pascal_name}"])
-        {rate_limiting.get("read", "")}
+        {rate_limiting.get('read', '')}
         async def get_{snake_name}s(
             request: Request,
-            {auth_dependencies.get("read", "current_user = Depends(get_current_user)")},
+            {auth_dependencies.get('read', 'current_user = Depends(get_current_user)')},
             db: AsyncSession = Depends(get_db),
             skip: int = Query(0, ge=0),
             limit: int = Query(100, ge=1, le=1000)
@@ -156,125 +174,125 @@ class {pascal_name}Routes:
             \"\"\"Get all {snake_name}s with pagination\"\"\"
             try:
                 # Security: Check permissions
-                {self._generate_permission_check(auth_config, snake_name, "read")}
-
+                {self._generate_permission_check(auth_config, snake_name, 'read')}
+                
                 # Apply row-level security if configured
                 {self._generate_row_level_security(auth_config, snake_name)}
-
+                
                 results = await self.service.get_all(skip=skip, limit=limit{self._generate_owner_filter(auth_config)})
-
+                
                 # Audit logging for bulk read
-                {self._generate_audit_log(auth_config, snake_name, "read_bulk")}
-
+                {self._generate_audit_log(auth_config, snake_name, 'read_bulk')}
+                
                 return results
             except HTTPException:
                 raise
             except Exception as e:
                 raise HTTPException(status_code=400, detail=str(e))
-
+        
         @self.router.get("/{snake_name}s/{{item_id}}", response_model={pascal_name}Response, tags=["{pascal_name}"])
-        {rate_limiting.get("read", "")}
+        {rate_limiting.get('read', '')}
         async def get_{snake_name}(
             item_id: int,
             request: Request,
-            {auth_dependencies.get("read", "current_user = Depends(get_current_user)")},
+            {auth_dependencies.get('read', 'current_user = Depends(get_current_user)')},
             db: AsyncSession = Depends(get_db)
         ):
             \"\"\"Get a specific {snake_name} by ID\"\"\"
             try:
                 # Security: Check permissions
-                {self._generate_permission_check(auth_config, snake_name, "read")}
-
+                {self._generate_permission_check(auth_config, snake_name, 'read')}
+                
                 result = await self.service.get(item_id)
                 if not result:
                     raise HTTPException(status_code=404, detail="{pascal_name} not found")
-
+                
                 # Security: Check owner-based access
                 {self._generate_owner_check(auth_config, snake_name)}
-
+                
                 # Audit logging
-                {self._generate_audit_log(auth_config, snake_name, "read")}
-
+                {self._generate_audit_log(auth_config, snake_name, 'read')}
+                
                 return result
             except HTTPException:
                 raise
             except Exception as e:
                 raise HTTPException(status_code=400, detail=str(e))
-
+        
         @self.router.put("/{snake_name}s/{{item_id}}", response_model={pascal_name}Response, tags=["{pascal_name}"])
-        {rate_limiting.get("update", "")}
+        {rate_limiting.get('update', '')}
         async def update_{snake_name}(
             item_id: int,
             item: {pascal_name}Update,
             request: Request,
-            {auth_dependencies.get("update", "current_user = Depends(get_current_user)")},
+            {auth_dependencies.get('update', 'current_user = Depends(get_current_user)')},
             db: AsyncSession = Depends(get_db)
         ):
             \"\"\"Update a {snake_name}\"\"\"
             try:
                 # Security: Check permissions
-                {self._generate_permission_check(auth_config, snake_name, "update")}
-
+                {self._generate_permission_check(auth_config, snake_name, 'update')}
+                
                 # Get existing item for owner check
                 existing = await self.service.get(item_id)
                 if not existing:
                     raise HTTPException(status_code=404, detail="{pascal_name} not found")
-
+                
                 # Security: Check owner-based access
-                {self._generate_owner_check(auth_config, snake_name, "existing")}
-
+                {self._generate_owner_check(auth_config, snake_name, 'existing')}
+                
                 result = await self.service.update(item_id, **item.dict(exclude_unset=True))
-
+                
                 # Audit logging
-                {self._generate_audit_log(auth_config, snake_name, "update")}
-
+                {self._generate_audit_log(auth_config, snake_name, 'update')}
+                
                 return result
             except HTTPException:
                 raise
             except Exception as e:
-                {self._generate_audit_log(auth_config, snake_name, "update_failed")}
+                {self._generate_audit_log(auth_config, snake_name, 'update_failed')}
                 raise HTTPException(status_code=400, detail=str(e))
-
+        
         @self.router.delete("/{snake_name}s/{{item_id}}", tags=["{pascal_name}"])
-        {rate_limiting.get("delete", "")}
+        {rate_limiting.get('delete', '')}
         async def delete_{snake_name}(
             item_id: int,
             request: Request,
-            {auth_dependencies.get("delete", "current_user = Depends(get_current_user)")},
+            {auth_dependencies.get('delete', 'current_user = Depends(get_current_user)')},
             db: AsyncSession = Depends(get_db)
         ):
             \"\"\"Delete a {snake_name}\"\"\"
             try:
                 # Security: Check permissions
-                {self._generate_permission_check(auth_config, snake_name, "delete")}
-
+                {self._generate_permission_check(auth_config, snake_name, 'delete')}
+                
                 # Get existing item for owner check
                 existing = await self.service.get(item_id)
                 if not existing:
                     raise HTTPException(status_code=404, detail="{pascal_name} not found")
-
+                
                 # Security: Check owner-based access
-                {self._generate_owner_check(auth_config, snake_name, "existing")}
-
+                {self._generate_owner_check(auth_config, snake_name, 'existing')}
+                
                 success = await self.service.delete(item_id)
                 if not success:
                     raise HTTPException(status_code=404, detail="{pascal_name} not found")
-
+                
                 # Audit logging
-                {self._generate_audit_log(auth_config, snake_name, "delete")}
-
+                {self._generate_audit_log(auth_config, snake_name, 'delete')}
+                
                 return {{"message": "{pascal_name} deleted successfully"}}
             except HTTPException:
                 raise
             except Exception as e:
-                {self._generate_audit_log(auth_config, snake_name, "delete_failed")}
+                {self._generate_audit_log(auth_config, snake_name, 'delete_failed')}
                 raise HTTPException(status_code=400, detail=str(e))
-
+        
         @self.router.get("/{snake_name}s/search/", response_model=List[{pascal_name}Response], tags=["{pascal_name}"])
-        {rate_limiting.get("search", "")}
+        {rate_limiting.get('search', '')}
         async def search_{snake_name}s(
             request: Request,
-            {auth_dependencies.get("read", "current_user = Depends(get_current_user)")},
+            {auth_dependencies.get('read', 'current_user = Depends(get_current_user)')},
             db: AsyncSession = Depends(get_db),
             q: str = Query(..., min_length=1),
             limit: int = Query(10, ge=1, le=100)
@@ -282,23 +300,23 @@ class {pascal_name}Routes:
             \"\"\"Search {snake_name}s\"\"\"
             try:
                 # Security: Check permissions
-                {self._generate_permission_check(auth_config, snake_name, "read")}
-
+                {self._generate_permission_check(auth_config, snake_name, 'read')}
+                
                 results = await self.service.search(q, limit=limit{self._generate_owner_filter(auth_config)})
-
+                
                 # Audit logging
-                {self._generate_audit_log(auth_config, snake_name, "search")}
-
+                {self._generate_audit_log(auth_config, snake_name, 'search')}
+                
                 return results
             except HTTPException:
                 raise
             except Exception as e:
                 raise HTTPException(status_code=400, detail=str(e)){bulk_routes}
-
+    
     def get_router(self) -> APIRouter:
         \"\"\"Get the FastAPI router\"\"\"
         return self.router
-
+    
     def emit_event(self, event_name: str, **kwargs):
         \"\"\"Emit plugin events for monitoring and integration\"\"\"
         try:
@@ -315,55 +333,47 @@ class {pascal_name}Routes:
             print(f"⚠️ Event emission failed: {{e}}")
 {audit_helpers}
 '''
-
-
-    def _generate_auth_imports(self, auth_config: dict[str, Any]) -> str:
-        """Generate authentication-related imports."""
+        
+        return template
+    
+    def _generate_auth_imports(self, auth_config: Dict[str, Any]) -> str:
+        """Generate authentication-related imports"""
         imports = []
-
+        
         if auth_config.get("enable_auth", True):
             imports.append("from sqlalchemy.ext.asyncio import AsyncSession")
             imports.append("from app.db.session import get_db")
             imports.append("from app.api.v1.endpoints.auth import get_current_user")
-
+            
             if auth_config.get("require_permissions", True):
                 imports.append("from app.core.security import require_permission")
-
+            
             if auth_config.get("require_roles"):
                 imports.append("from app.core.security import require_role")
-
+                
             if auth_config.get("enable_audit", True):
                 imports.append("from app.core.security import security_service")
-
+                
             if auth_config.get("enable_rate_limiting", True):
-                imports.append(
-                    "from slowapi import Limiter, _rate_limit_exceeded_handler",
-                )
+                imports.append("from slowapi import Limiter, _rate_limit_exceeded_handler")
                 imports.append("from slowapi.util import get_remote_address")
-
-        return "\n".join(imports)
-
-    def _generate_auth_dependencies(
-        self, auth_config: dict[str, Any], snake_name: str,
-    ) -> dict[str, str]:
-        """Generate authentication dependencies for each operation."""
+        
+        return '\n'.join(imports)
+    
+    def _generate_auth_dependencies(self, auth_config: Dict[str, Any], snake_name: str) -> Dict[str, str]:
+        """Generate authentication dependencies for each operation"""
         deps = {}
-
+        
         if not auth_config.get("enable_auth", True):
             return {"create": "", "read": "", "update": "", "delete": ""}
-
+        
         base_dep = "current_user = Depends(get_current_user)"
-
+        
         # Use simple token authentication by default (get_current_user)
         if auth_config.get("simple_token_auth", True):
             # Simple token authentication - just validate JWT token
-            deps = {
-                "create": base_dep,
-                "read": base_dep,
-                "update": base_dep,
-                "delete": base_dep,
-            }
-
+            deps = {"create": base_dep, "read": base_dep, "update": base_dep, "delete": base_dep}
+        
         # Add role requirements (only if explicitly requested)
         elif auth_config.get("require_roles"):
             roles = auth_config["require_roles"]
@@ -381,13 +391,8 @@ class {pascal_name}Routes:
                     role_dep = f"current_user = Depends(require_role('{roles[0]}'))"
                 else:
                     role_dep = f"current_user = Depends(require_role('{roles}'))"
-                deps = {
-                    "create": role_dep,
-                    "read": role_dep,
-                    "update": role_dep,
-                    "delete": role_dep,
-                }
-
+                deps = {"create": role_dep, "read": role_dep, "update": role_dep, "delete": role_dep}
+        
         # Add permission requirements (only if explicitly enabled)
         elif auth_config.get("require_permissions", False):
             resource = snake_name
@@ -395,46 +400,35 @@ class {pascal_name}Routes:
                 "create": f"current_user = Depends(require_permission('{resource}', 'create'))",
                 "read": f"current_user = Depends(require_permission('{resource}', 'read'))",
                 "update": f"current_user = Depends(require_permission('{resource}', 'update'))",
-                "delete": f"current_user = Depends(require_permission('{resource}', 'delete'))",
+                "delete": f"current_user = Depends(require_permission('{resource}', 'delete'))"
             }
         else:
             # Fallback to simple token authentication
-            deps = {
-                "create": base_dep,
-                "read": base_dep,
-                "update": base_dep,
-                "delete": base_dep,
-            }
-
+            deps = {"create": base_dep, "read": base_dep, "update": base_dep, "delete": base_dep}
+        
         return deps
-
-    def _generate_rate_limiting(
-        self, auth_config: dict[str, Any], snake_name: str,
-    ) -> dict[str, str]:
-        """Generate rate limiting decorators."""
+    
+    def _generate_rate_limiting(self, auth_config: Dict[str, Any], snake_name: str) -> Dict[str, str]:
+        """Generate rate limiting decorators"""
         if not auth_config.get("enable_rate_limiting", True):
             return {}
-
+        
         # Default rate limits - use simple decorators since slowapi is optional
         return {
             "create": "@limiter.limit('10/minute')",
-            "read": "@limiter.limit('100/minute')",
+            "read": "@limiter.limit('100/minute')", 
             "update": "@limiter.limit('20/minute')",
             "delete": "@limiter.limit('5/minute')",
-            "search": "@limiter.limit('50/minute')",
+            "search": "@limiter.limit('50/minute')"
         }
-
-    def _generate_permission_check(
-        self, auth_config: dict[str, Any], snake_name: str, action: str,
-    ) -> str:
-        """Generate permission check code."""
+    
+    def _generate_permission_check(self, auth_config: Dict[str, Any], snake_name: str, action: str) -> str:
+        """Generate permission check code"""
         # Only generate permission checks if explicitly enabled and not using simple token auth
-        if auth_config.get("simple_token_auth", True) or not auth_config.get(
-            "require_permissions", False,
-        ):
+        if auth_config.get("simple_token_auth", True) or not auth_config.get("require_permissions", False):
             return "# Token authentication only - user is authenticated via JWT"
-
-        return f"""
+        
+        return f'''
                 # Check if user has permission for this action
                 if not await security_service.check_permission(
                     db, current_user, '{snake_name}', '{action}'
@@ -442,97 +436,86 @@ class {pascal_name}Routes:
                     raise HTTPException(
                         status_code=status.HTTP_403_FORBIDDEN,
                         detail="Insufficient permissions"
-                    )"""
-
-    def _generate_owner_check(
-        self, auth_config: dict[str, Any], snake_name: str, result_var: str = "result",
-    ) -> str:
-        """Generate owner-based access control."""
+                    )'''
+    
+    def _generate_owner_check(self, auth_config: Dict[str, Any], snake_name: str, result_var: str = "result") -> str:
+        """Generate owner-based access control"""
         if not auth_config.get("owner_based_access", False):
             return "# No owner-based access control"
-
-        return f"""
+        
+        return f'''
                 # Check if user owns this resource or has admin privileges
                 if hasattr({result_var}, 'user_id') and {result_var}.user_id != current_user.id:
                     if not await security_service.is_admin(current_user):
                         raise HTTPException(
                             status_code=status.HTTP_403_FORBIDDEN,
                             detail="Access denied: You can only access your own {snake_name}s"
-                        )"""
-
-    def _generate_row_level_security(
-        self, auth_config: dict[str, Any], snake_name: str,
-    ) -> str:
-        """Generate row-level security for listing operations."""
+                        )'''
+    
+    def _generate_row_level_security(self, auth_config: Dict[str, Any], snake_name: str) -> str:
+        """Generate row-level security for listing operations"""
         if not auth_config.get("owner_based_access", False):
             return "# No row-level security applied"
-
-        return """
+        
+        return f'''
                 # Apply row-level security for data access
                 if not await security_service.is_admin(current_user):
                     # Non-admin users can only see their own data
-                    pass  # This will be handled in the service layer"""
-
-    def _generate_owner_filter(self, auth_config: dict[str, Any]) -> str:
-        """Generate owner filter for queries."""
+                    pass  # This will be handled in the service layer'''
+    
+    def _generate_owner_filter(self, auth_config: Dict[str, Any]) -> str:
+        """Generate owner filter for queries"""
         if not auth_config.get("owner_based_access", False):
             return ""
-
+        
         return ", owner_id=current_user.id"
-
-    def _generate_audit_log(
-        self, auth_config: dict[str, Any], snake_name: str, action: str,
-    ) -> str:
-        """Generate audit logging code."""
+    
+    def _generate_audit_log(self, auth_config: Dict[str, Any], snake_name: str, action: str) -> str:
+        """Generate audit logging code"""
         if not auth_config.get("enable_audit", True):
             return "# No audit logging configured"
-
+        
         # Different audit patterns for different actions
-        if action in ["read_bulk", "search"]:
-            return f"""
+        if action in ['read_bulk', 'search']:
+            return f'''
                 # Log security event for audit trail
                 await security_service.log_security_event(
                     db, current_user, '{snake_name}_{action}', 'resource_access',
                     {{"resource": "{snake_name}", "action": "{action}", "count": len(results)}},
                     request
-                )"""
-        if action in ["create_failed", "update_failed", "delete_failed"]:
-            return f"""
+                )'''
+        elif action in ['create_failed', 'update_failed', 'delete_failed']:
+            return f'''
                 # Log security event for audit trail
                 await security_service.log_security_event(
                     db, current_user, '{snake_name}_{action}', 'resource_access',
                     {{"resource": "{snake_name}", "action": "{action}"}},
                     request
-                )"""
-        if action == "delete":
-            return f"""
+                )'''
+        elif action == 'delete':
+            return f'''
                 # Log security event for audit trail
                 await security_service.log_security_event(
                     db, current_user, '{snake_name}_{action}', 'resource_access',
                     {{"resource": "{snake_name}", "action": "{action}", "resource_id": item_id}},
                     request
-                )"""
-        return f"""
+                )'''
+        else:
+            return f'''
                 # Log security event for audit trail
                 await security_service.log_security_event(
                     db, current_user, '{snake_name}_{action}', 'resource_access',
                     {{"resource": "{snake_name}", "action": "{action}", "resource_id": getattr(result, 'id', None)}},
                     request
-                )"""
-
-    def _generate_bulk_routes(
-        self, pascal_name: str, snake_name: str, auth_config: dict[str, Any],
-    ) -> str:
-        """Generate bulk operation routes with authentication."""
-        auth_dep = self._generate_auth_dependencies(auth_config, snake_name).get(
-            "create", "",
-        )
-        rate_limit = self._generate_rate_limiting(auth_config, snake_name).get(
-            "create", "",
-        )
-
-        return f"""
-
+                )'''
+    
+    def _generate_bulk_routes(self, pascal_name: str, snake_name: str, auth_config: Dict[str, Any]) -> str:
+        """Generate bulk operation routes with authentication"""
+        auth_dep = self._generate_auth_dependencies(auth_config, snake_name).get("create", "")
+        rate_limit = self._generate_rate_limiting(auth_config, snake_name).get("create", "")
+        
+        return f'''
+        
         @self.router.post("/{snake_name}s/bulk", response_model=List[{pascal_name}Response], tags=["{pascal_name}"])
         {rate_limit}
         async def create_bulk_{snake_name}s(
@@ -549,24 +532,24 @@ class {pascal_name}Routes:
                         status_code=status.HTTP_403_FORBIDDEN,
                         detail="Bulk operations require admin privileges"
                     )
-
+                
                 results = await self.service.bulk_create(items)
-                self.emit_event("{snake_name}_bulk_created",
-                              count=len(results),
+                self.emit_event("{snake_name}_bulk_created", 
+                              count=len(results), 
                               user_id=current_user.id)
-
+                
                 # Audit log
                 await security_service.log_security_event(
                     db, current_user, '{snake_name}_bulk_create', 'admin_action',
                     {{"count": len(results)}}, request
                 )
-
+                
                 return results
             except HTTPException:
                 raise
             except Exception as e:
                 raise HTTPException(status_code=400, detail=str(e))
-
+        
         @self.router.put("/{snake_name}s/bulk", response_model=List[{pascal_name}Response], tags=["{pascal_name}"])
         {rate_limit}
         async def update_bulk_{snake_name}s(
@@ -583,31 +566,31 @@ class {pascal_name}Routes:
                         status_code=status.HTTP_403_FORBIDDEN,
                         detail="Bulk operations require admin privileges"
                     )
-
+                
                 results = await self.service.bulk_update(updates)
-                self.emit_event("{snake_name}_bulk_updated",
-                              count=len(results),
+                self.emit_event("{snake_name}_bulk_updated", 
+                              count=len(results), 
                               user_id=current_user.id)
-
+                
                 # Audit log
                 await security_service.log_security_event(
                     db, current_user, '{snake_name}_bulk_update', 'admin_action',
                     {{"count": len(results)}}, request
                 )
-
+                
                 return results
             except HTTPException:
                 raise
             except Exception as e:
-                raise HTTPException(status_code=400, detail=str(e))"""
-
-    def _generate_audit_helpers(self, auth_config: dict[str, Any]) -> str:
-        """Generate audit helper methods."""
+                raise HTTPException(status_code=400, detail=str(e))'''
+    
+    def _generate_audit_helpers(self, auth_config: Dict[str, Any]) -> str:
+        """Generate audit helper methods"""
         if not auth_config.get("enable_audit", True):
             return ""
-
+        
         return '''
-
+    
     async def log_access_event(self, db: AsyncSession, user, action: str, resource_id: int = None):
         """Helper method for logging access events"""
         try:
@@ -618,4 +601,4 @@ class {pascal_name}Routes:
         except Exception as e:
             # Don't let audit logging break the main functionality
             print(f"⚠️ Audit logging failed: {e}")
-'''
+''' 

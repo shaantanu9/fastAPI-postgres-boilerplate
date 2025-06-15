@@ -75,12 +75,20 @@ except ImportError:
     logging.warning("Production features not available - running in development mode")
 
 # Observability imports
-from app.api.v1.endpoints.health import router as health_router
+from app.api.v1.endpoints.production_health import router as health_router
 from app.core.metrics import metrics
 from app.middleware.logging_middleware import (
     LoggingMiddleware,
     SecurityLoggingMiddleware,
 )
+
+# Production middleware imports
+try:
+    from app.middleware.simple_error_tracker import SimpleErrorTracker
+    from app.middleware.security_headers import SecurityHeadersMiddleware
+    PRODUCTION_MIDDLEWARE_AVAILABLE = True
+except ImportError:
+    PRODUCTION_MIDDLEWARE_AVAILABLE = False
 
 # --- Import core functions ---
 try:
@@ -130,11 +138,32 @@ else:
 # Global plugin manager reference
 _plugin_manager = None
 
+from app.websocket.manager import WebSocketManager, get_websocket_manager
+from app.websocket.redis_pubsub import RedisPubSub
+from app.websocket.presence import Presence
+from app.websocket.history import MessageHistory
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan manager for startup and shutdown events."""
     global _plugin_manager
+
+    # --- WebSocket system setup ---
+    ws_manager = WebSocketManager()
+    ws_manager.redis_pubsub = RedisPubSub()
+    ws_manager.presence = Presence()
+    ws_manager.history = MessageHistory()
+    app.state.websocket_manager = ws_manager
+
+    # Start heartbeat and Redis listener
+    ws_manager.start_heartbeat()
+    await ws_manager.redis_pubsub.connect()
+    # Optionally, subscribe to all rooms (for demo, subscribe to 'global')
+    async def redis_callback(msg):
+        # Broadcast to all local connections
+        await ws_manager.broadcast(msg)
+    await ws_manager.redis_pubsub.subscribe('global', redis_callback)
 
     # Startup
     logging.info("🚀 FastAPI application starting up...")
@@ -240,9 +269,13 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logging.exception(f"❌ Error shutting down plugin system: {e}")
 
-    enhanced_task_queue.stop()
+    await enhanced_task_queue.stop()
     await shutdown_concurrent_manager()
     logging.info("✅ Shutdown complete. All concurrent processing stopped.")
+
+    # --- WebSocket system cleanup ---
+    ws_manager.stop_heartbeat()
+    await ws_manager.redis_pubsub.close()
 
 
 def create_app() -> FastAPI:
@@ -261,8 +294,53 @@ def create_app() -> FastAPI:
         title=settings.PROJECT_NAME,
         version=settings.VERSION,
         openapi_url=f"{settings.API_V1_STR}/openapi.json",
+        lifespan=lifespan,
     )
 
+    # FORCE plugin initialization during app creation as fallback
+    # This ensures plugins work even if lifespan doesn't execute in dev mode
+    try:
+        global _plugin_manager
+        if not _plugin_manager:
+            logger.info("🔧 Initializing plugins during app creation (fallback)")
+            
+            # Import here to avoid circular imports
+            from app.core.plugin_system import PluginManager
+            
+            # Create plugin manager
+            manager = PluginManager(app, "1.0.0")
+            
+            # Import asyncio for running async functions
+            import asyncio
+            
+            # Run plugin initialization
+            async def init_plugins_sync():
+                await manager.discover_and_load_plugins(["app/plugins"])
+                await manager.initialize_plugins()
+                await manager.startup_plugins()
+                return manager
+            
+            # Run the initialization
+            try:
+                _plugin_manager = asyncio.get_event_loop().run_until_complete(init_plugins_sync())
+                logger.info("✅ Plugins initialized successfully during app creation")
+            except RuntimeError:
+                # If no event loop, create one
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                _plugin_manager = loop.run_until_complete(init_plugins_sync())
+                logger.info("✅ Plugins initialized successfully with new event loop")
+                
+    except Exception as e:
+        logger.warning(f"⚠️ Plugin initialization fallback failed: {e}")
+        # Don't crash the app if plugin initialization fails
+
+    # Add production middleware (minimal overhead)
+    if PRODUCTION_MIDDLEWARE_AVAILABLE:
+        app.add_middleware(SecurityHeadersMiddleware)
+        app.add_middleware(SimpleErrorTracker)
+        logger.info("✅ Production middleware enabled")
+    
     # Add observability middleware
     app.add_middleware(SecurityLoggingMiddleware)
     app.add_middleware(
@@ -287,6 +365,10 @@ def create_app() -> FastAPI:
     # Include routers
     app.include_router(api_router, prefix=settings.API_V1_STR)
     app.include_router(health_router, prefix="/health", tags=["health"])
+    
+    # --- WebSocket router integration ---
+    from app.websocket.routes import router as websocket_router
+    app.include_router(websocket_router)  # WebSocket endpoints (e.g., /ws/{room})
 
     # Add root endpoint
     @app.get("/")

@@ -1,35 +1,23 @@
-"""Request timeout middleware for FastAPI.
-
-This module provides middleware for enforcing request timeouts at the application level.
-It works in conjunction with the timeout utilities in app.core.timeouts.
 """
-
+Timeout middleware with enhanced error handling and debugging.
+"""
 import asyncio
 import contextlib
-import logging
 import time
 from typing import Any
 
 from fastapi import Request, Response
 from fastapi.responses import JSONResponse
+from loguru import logger
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.types import ASGIApp
 
-from app.core.timeouts import DEFAULT_TIMEOUT
-
-logger = logging.getLogger(__name__)
+# Default timeout in seconds
+DEFAULT_TIMEOUT = 30.0
 
 
 class TimeoutMiddleware(BaseHTTPMiddleware):
-    """Enhanced middleware that enforces request timeouts with metrics and escalation.
-
-    Features:
-    - Global and per-endpoint timeout configuration
-    - Timeout escalation warnings
-    - Metrics collection
-    - Detailed error responses
-    - Performance monitoring
-    """
+    """Middleware to handle request timeouts with enhanced error handling."""
 
     def __init__(
         self,
@@ -39,73 +27,73 @@ class TimeoutMiddleware(BaseHTTPMiddleware):
         warning_threshold: float = 0.8,
         enable_metrics: bool = True,
     ) -> None:
-        """Initialize the enhanced timeout middleware.
+        """Initialize timeout middleware.
 
         Args:
-            app: The ASGI application
-            timeout_seconds: Global timeout in seconds (default: 30s)
-            timeout_response: Custom response for timeout errors
-            warning_threshold: Fraction of timeout to trigger warning (default: 0.8 = 80%)
-            enable_metrics: Whether to collect timeout metrics
+            app: ASGI application
+            timeout_seconds: Default timeout in seconds
+            timeout_response: Custom timeout response
+            warning_threshold: Warning threshold as fraction of timeout
+            enable_metrics: Whether to collect metrics
 
         """
         super().__init__(app)
         self.timeout_seconds = timeout_seconds
+        self.timeout_response = timeout_response or {
+            "detail": "Request timeout",
+            "error_code": "REQUEST_TIMEOUT",
+        }
         self.warning_threshold = warning_threshold
         self.enable_metrics = enable_metrics
-        self.timeout_response = timeout_response or {
-            "detail": f"Request timed out after {timeout_seconds} seconds",
-            "error_code": "REQUEST_TIMEOUT",
-            "timeout_seconds": timeout_seconds,
-        }
 
-        # Metrics collection
-        self.metrics = (
-            {
+        # Initialize metrics
+        if self.enable_metrics:
+            self.metrics = {
                 "total_requests": 0,
                 "timeout_count": 0,
                 "warning_count": 0,
                 "avg_response_time": 0.0,
                 "max_response_time": 0.0,
             }
-            if enable_metrics
-            else None
-        )
 
     async def dispatch(
         self, request: Request, call_next: RequestResponseEndpoint,
     ) -> Response:
-        """Process the request with enhanced timeout enforcement and monitoring.
+        """Process request with timeout handling.
 
         Args:
             request: The incoming request
             call_next: The next middleware or endpoint to call
 
         Returns:
-            Response: The response from the next handler or timeout error
+            Response: The response from the next handler or timeout response
 
         """
         start_time = time.monotonic()
 
-        # Get endpoint-specific timeout if configured
+        # Get endpoint-specific timeout
         endpoint_timeout = self._get_endpoint_timeout(request)
+        warning_time = endpoint_timeout * self.warning_threshold
+
+        # Update metrics
+        if self.enable_metrics:
+            self.metrics["total_requests"] += 1
 
         try:
-            if self.enable_metrics:
-                self.metrics["total_requests"] += 1
-
-            # Create timeout task with warning
-            warning_time = endpoint_timeout * self.warning_threshold
-
+            # ENHANCED ERROR HANDLING: Check if this is an auth endpoint
+            is_auth_endpoint = "/api/v1/auth/" in request.url.path
+            
+            if is_auth_endpoint:
+                logger.debug(f"Processing auth endpoint: {request.method} {request.url.path}")
+            
             # Execute request with timeout
-            response = await self._execute_with_timeout(
-                request, call_next, endpoint_timeout, warning_time,
+            response = await self._execute_with_timeout_enhanced(
+                request, call_next, endpoint_timeout, warning_time, is_auth_endpoint
             )
 
-            # Update metrics
+            # Calculate duration and update metrics
             duration = time.monotonic() - start_time
-            if self.enable_metrics:
-                self._update_metrics(duration)
+            self._update_metrics(duration)
 
             # Add timeout headers
             response.headers["X-Request-Duration"] = f"{duration:.3f}"
@@ -141,7 +129,15 @@ class TimeoutMiddleware(BaseHTTPMiddleware):
 
         except Exception as exc:
             duration = time.monotonic() - start_time
-            logger.exception(f"Error in timeout middleware for {request.url}: {exc}")
+            
+            # ENHANCED ERROR LOGGING
+            logger.error(f"Error in timeout middleware for {request.method} {request.url.path}: {exc}")
+            logger.error(f"Exception type: {type(exc)}")
+            logger.error(f"Exception args: {exc.args}")
+            
+            # Log the full traceback for debugging
+            import traceback
+            logger.error(f"Full traceback: {traceback.format_exc()}")
 
             return JSONResponse(
                 status_code=500,
@@ -149,6 +145,12 @@ class TimeoutMiddleware(BaseHTTPMiddleware):
                     "detail": "Internal server error during timeout handling",
                     "error_code": "TIMEOUT_MIDDLEWARE_ERROR",
                     "duration": round(duration, 2),
+                    "debug_info": {
+                        "exception_type": str(type(exc)),
+                        "exception_message": str(exc),
+                        "endpoint": str(request.url.path),
+                        "method": request.method
+                    }
                 },
             )
 
@@ -172,7 +174,7 @@ class TimeoutMiddleware(BaseHTTPMiddleware):
 
         # Define endpoint-specific timeouts
         endpoint_timeouts = {
-            "/api/v1/auth/": 10.0,  # Auth endpoints - shorter timeout
+            "/api/v1/auth/": 15.0,  # Auth endpoints - increased timeout
             "/api/v1/users/": 15.0,  # User operations
             "/api/v1/data/": 60.0,  # Data processing - longer timeout
             "/health": 5.0,  # Health checks - very short
@@ -187,32 +189,41 @@ class TimeoutMiddleware(BaseHTTPMiddleware):
         # Default timeout
         return self.timeout_seconds
 
-    async def _execute_with_timeout(
+    async def _execute_with_timeout_enhanced(
         self,
         request: Request,
         call_next: RequestResponseEndpoint,
         timeout: float,
         warning_time: float,
+        is_auth_endpoint: bool = False,
     ) -> Response:
-        """Execute the request with timeout and warning monitoring.
+        """Execute the request with enhanced timeout and error handling.
 
         Args:
             request: The incoming request
             call_next: The next middleware or endpoint to call
             timeout: Timeout in seconds
             warning_time: Time in seconds to trigger warning
+            is_auth_endpoint: Whether this is an auth endpoint
 
         Returns:
             Response: The response from the next handler
 
         """
-        # Create the main request task
-        request_task = asyncio.create_task(call_next(request))
-
-        # Create warning task
-        warning_task = asyncio.create_task(asyncio.sleep(warning_time))
-
         try:
+            # For auth endpoints, add extra debugging
+            if is_auth_endpoint:
+                logger.debug(f"Creating task for auth endpoint: {request.url.path}")
+            
+            # Create the main request task
+            request_task = asyncio.create_task(call_next(request))
+            
+            if is_auth_endpoint:
+                logger.debug(f"Request task created successfully for: {request.url.path}")
+
+            # Create warning task
+            warning_task = asyncio.create_task(asyncio.sleep(warning_time))
+
             # Wait for either completion or warning
             done, pending = await asyncio.wait(
                 [request_task, warning_task],
@@ -243,16 +254,22 @@ class TimeoutMiddleware(BaseHTTPMiddleware):
 
             # Request completed normally
             if request_task in done:
+                if is_auth_endpoint:
+                    logger.debug(f"Auth endpoint completed successfully: {request.url.path}")
                 return await request_task
 
             # This shouldn't happen, but handle it
-            raise TimeoutError
+            logger.error(f"Unexpected state in timeout middleware for {request.url.path}")
+            raise TimeoutError("Request did not complete within timeout")
 
-        except TimeoutError:
-            # Cancel the request task
-            request_task.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await request_task
+        except asyncio.CancelledError:
+            logger.error(f"Request was cancelled for {request.url.path}")
+            raise
+        except Exception as e:
+            logger.error(f"Exception in _execute_with_timeout_enhanced for {request.url.path}: {e}")
+            logger.error(f"Exception type: {type(e)}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
             raise
 
     def _update_metrics(self, duration: float) -> None:

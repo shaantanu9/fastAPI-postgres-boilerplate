@@ -1,0 +1,9 @@
+# Add this to your crontab for daily backups
+# Run: crontab -e
+# Add this line:
+0 2 * * * /app/scripts/backup_database.sh >> /app/logs/backup.log 2>&1
+
+# To setup:
+# 1. Make sure logs directory exists: mkdir -p /app/logs
+# 2. Add to crontab: crontab -e
+# 3. Optional: Set BACKUP_WEBHOOK_URL for notifications

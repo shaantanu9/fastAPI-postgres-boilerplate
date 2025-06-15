@@ -40,13 +40,13 @@ export LOG_DIR="$HOME/logs"
 run_test "Development Config Check" "gunicorn --check-config -c gunicorn.dev.conf.py app.main:app"
 
 # Test 2: Production Configuration (Development Mode)
-run_test "Production Config (Dev Mode)" "ENVIRONMENT=development LOG_DIR=\$HOME/logs gunicorn --check-config -c production_configs/gunicorn.conf.py app.main:app"
+run_test "Production Config (Dev Mode)" "ENVIRONMENT=development LOG_DIR=\$HOME/logs gunicorn --check-config -c scripts/setup/gunicorn.conf.py app.main:app"
 
 # Test 3: Production Configuration (Staging Mode)
-run_test "Production Config (Staging Mode)" "ENVIRONMENT=staging LOG_DIR=\$HOME/logs gunicorn --check-config -c production_configs/gunicorn.conf.py app.main:app"
+run_test "Production Config (Staging Mode)" "ENVIRONMENT=staging LOG_DIR=\$HOME/logs gunicorn --check-config -c scripts/setup/gunicorn.conf.py app.main:app"
 
 # Test 4: Production Configuration (Production Mode with TCP)
-run_test "Production Config (Production TCP)" "ENVIRONMENT=production LOG_DIR=\$HOME/logs USE_UNIX_SOCKET=false gunicorn --check-config -c production_configs/gunicorn.conf.py app.main:app"
+run_test "Production Config (Production TCP)" "ENVIRONMENT=production LOG_DIR=\$HOME/logs USE_UNIX_SOCKET=false gunicorn --check-config -c scripts/setup/gunicorn.conf.py app.main:app"
 
 # Test 5: FastAPI App Import
 run_test "FastAPI App Import" "python -c 'from app.main import app; print(\"FastAPI app imported successfully\")'"

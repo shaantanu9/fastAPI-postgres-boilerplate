@@ -28,6 +28,7 @@ import logging
 import uuid
 from datetime import datetime
 from typing import Any
+import weakref
 
 import redis.asyncio as aioredis
 from fastapi import WebSocket
@@ -184,11 +185,10 @@ class WebSocketManager:
             redis_url: Optional Redis URL. If None, uses value from settings.
 
         """
-        # Map of tenant_id -> room_id -> list of WebSocketConnection objects
-        self.connections: dict[str, dict[str, list[WebSocketConnection]]] = {}
-
-        # Connection lookup by ID for fast access
-        self.connection_by_id: dict[str, WebSocketConnection] = {}
+        # Map of tenant_id -> room_id -> WeakSet of WebSocketConnection objects
+        self.connections: dict[str, dict[str, weakref.WeakSet]] = {}
+        # Connection lookup by ID for fast access (weak references)
+        self.connection_by_id: weakref.WeakValueDictionary = weakref.WeakValueDictionary()
 
         # Track active tenant+room channels
         self.active_channels: set[str] = set()
@@ -231,13 +231,13 @@ class WebSocketManager:
         if tenant_id not in self.connections:
             self.connections[tenant_id] = {}
 
-        # Initialize room list if needed
+        # Initialize room WeakSet if needed
         if room_id not in self.connections[tenant_id]:
-            self.connections[tenant_id][room_id] = []
+            self.connections[tenant_id][room_id] = weakref.WeakSet()
             await self._setup_room_subscription(tenant_id, room_id)
 
         # Add connection to room
-        self.connections[tenant_id][room_id].append(connection)
+        self.connections[tenant_id][room_id].add(connection)
         self.connection_by_id[connection.connection_id] = connection
 
         logger.info(
@@ -267,17 +267,17 @@ class WebSocketManager:
 
         """
         # Find the connection to remove
-        room_connections = self.connections.get(tenant_id, {}).get(room_id, [])
+        room_connections = self.connections.get(tenant_id, {}).get(room_id, weakref.WeakSet())
         connection = None
 
-        for conn in room_connections:
+        for conn in list(room_connections):
             if conn.websocket == websocket:
                 connection = conn
                 break
 
         if connection:
-            # Remove from room list
-            self.connections[tenant_id][room_id].remove(connection)
+            # Remove from room WeakSet
+            self.connections[tenant_id][room_id].discard(connection)
 
             # Remove from ID lookup
             if connection.connection_id in self.connection_by_id:
@@ -517,7 +517,7 @@ class WebSocketManager:
             Number of connections the message was delivered to
 
         """
-        room_connections = self.connections.get(tenant_id, {}).get(room_id, [])
+        room_connections = self.connections.get(tenant_id, {}).get(room_id, weakref.WeakSet())
         if not room_connections:
             return 0
 
@@ -546,7 +546,7 @@ class WebSocketManager:
 
         # Deliver to connections
         count = 0
-        for connection in room_connections:
+        for connection in list(room_connections):
             if (
                 exclude_connection_id
                 and connection.connection_id == exclude_connection_id

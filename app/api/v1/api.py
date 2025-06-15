@@ -6,7 +6,6 @@ from app.api.v1.endpoints import (
     email_integration,
     examples,
     files,
-    health,
     jobs,
     listing,
     organizations,
@@ -52,7 +51,6 @@ api_router.include_router(
 )
 
 # Enterprise features
-api_router.include_router(health.router, prefix="/health", tags=["health-monitoring"])
 api_router.include_router(files.router, prefix="/files", tags=["file-management"])
 api_router.include_router(listing.router, prefix="/listing", tags=["advanced-listing"])
 api_router.include_router(jobs.router, prefix="/jobs", tags=["job-monitoring"])

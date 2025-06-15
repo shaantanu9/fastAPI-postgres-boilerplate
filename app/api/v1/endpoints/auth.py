@@ -7,7 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.email import email_service
 from app.core.jwt import jwt_service
-from app.core.security_base import EnterpriseSecurityService
+from app.core.security import security_service
+from app.core.security import EnterpriseSecurityService
 from app.core.security_codes import security_codes_service
 from app.db.schemas.user import (
     BackupCodePasswordReset,
@@ -23,7 +24,7 @@ from app.db.schemas.user import (
     UserRead,
 )
 from app.db.session import get_db
-from app.services.user_service import enhanced_user_service
+from app.services.auth_service import enhanced_user_service
 
 
 def get_security_service() -> EnterpriseSecurityService:
@@ -123,7 +124,7 @@ async def register_user(
     """
     try:
         user = await enhanced_user_service.create_user(
-            db, user_create, security_service,
+            db, user_create,
         )
 
         # Send verification email in background
@@ -183,7 +184,6 @@ async def login(
             login_data.username_or_email,
             login_data.password,
             request,
-            security_service,
         )
 
         if not user:
@@ -296,15 +296,22 @@ async def refresh_token(
 
     """
     try:
-        payload = jwt_service.verify_refresh_token(refresh_token_request.refresh_token)
-        user_id = payload.get("user_id")
+        payload = jwt_service.verify_token(refresh_token_request.refresh_token, "refresh")
+        user_id = payload.get("sub")  # Changed from "user_id" to "sub"
         session_id = payload.get("session_id")
 
-        # Get user and session
+        # Get user
         user = await enhanced_user_service.get_by_id(db, user_id)
-        session = await enhanced_user_service.get_session(db, session_id)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token",
+            )
 
-        if not user or not session:
+        # Get session from active sessions
+        active_sessions = await enhanced_user_service.get_active_sessions(db, user_id)
+        session = next((s for s in active_sessions if s.id == session_id), None)
+
+        if not session:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token",
             )
@@ -631,4 +638,87 @@ async def get_security_events(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to get security events",
+        )
+
+
+@router.get("/me")
+async def get_current_user_info(
+    current_user: Annotated[UserRead, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Get current user information with roles and permissions."""
+    try:
+        user = await enhanced_user_service.get_by_id(db, current_user.id)
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        # Get user permissions
+        permissions = await enhanced_user_service.get_user_permissions(db, user.id)
+
+        # Convert to dict and add roles/permissions
+        user_dict = UserRead.from_orm(user).dict()
+        user_dict["roles"] = [{"id": role.id, "name": role.name} for role in user.roles]
+        user_dict["permissions"] = [{"id": perm.id, "name": perm.name} for perm in permissions]
+
+        return user_dict
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get user information: {str(e)}",
+        )
+
+
+@router.get("/me/sessions")
+async def get_user_sessions(
+    current_user: Annotated[UserRead, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Get all active sessions for the current user."""
+    try:
+        sessions = await enhanced_user_service.get_active_sessions(db, current_user.id)
+        # Convert SQLAlchemy models to dict format
+        session_data = []
+        for session in sessions:
+            session_data.append({
+                "id": session.id,
+                "session_token": session.session_token,
+                "ip_address": session.ip_address,
+                "user_agent": session.user_agent,
+                "device_fingerprint": session.device_fingerprint,
+                "is_active": session.is_active,
+                "expires_at": session.expires_at.isoformat() if session.expires_at else None,
+                "created_at": session.created_at.isoformat() if session.created_at else None,
+                "last_activity": session.last_activity.isoformat() if session.last_activity else None,
+            })
+        return session_data
+    except Exception as e:
+        # For debugging - show actual error
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get user sessions: {str(e)}",
+        )
+
+
+@router.delete("/me/sessions/{session_id}")
+async def revoke_session(
+    session_id: str,
+    current_user: Annotated[UserRead, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Revoke a specific session."""
+    try:
+        await enhanced_user_service.deactivate_session(db, session_id)
+        return {"message": "Session revoked successfully"}
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to revoke session: {str(e)}",
         )

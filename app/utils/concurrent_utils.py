@@ -288,6 +288,7 @@ async def execute_parallel(
             ]
             results = await asyncio.gather(*futures, return_exceptions=True)
 
+        # Log performance metrics
         duration = time.time() - start_time
         success_count = len([r for r in results if not isinstance(r, Exception)])
         error_count = len(results) - success_count
@@ -300,7 +301,10 @@ async def execute_parallel(
         return results
 
     finally:
-        executor.shutdown(wait=False)
+        # Always shutdown custom executors to prevent memory leaks
+        if max_workers:  # Only shutdown if we created a custom executor
+            executor.shutdown(wait=True)
+            logger.debug(f"Shutdown custom executor for {func.__name__}")
 
 
 async def map_parallel(

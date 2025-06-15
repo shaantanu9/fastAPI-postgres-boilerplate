@@ -8,6 +8,7 @@ import uuid
 from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any
+import weakref
 
 import jwt
 from fastapi import WebSocket
@@ -124,11 +125,9 @@ class EnterpriseWebSocketManager:
 
     def __init__(self) -> None:
         self.settings = get_settings()
-        self.connections: dict[str, WebSocketConnection] = {}
-        self.user_connections: dict[str, set[str]] = {}  # user_id -> connection_ids
-        self.channel_subscriptions: dict[
-            str, set[str],
-        ] = {}  # channel -> connection_ids
+        self.connections: weakref.WeakValueDictionary = weakref.WeakValueDictionary()
+        self.user_connections: dict[str, weakref.WeakSet] = {}
+        self.channel_subscriptions: dict[str, weakref.WeakSet] = {}
         self.heartbeat_interval = 30  # seconds
         self.connection_timeout = 300  # 5 minutes
         self._heartbeat_task: asyncio.Task | None = None
@@ -168,6 +167,12 @@ class EnterpriseWebSocketManager:
         if token:
             await self._authenticate_connection(connection, token)
 
+        # Track user connections
+        if connection.user_id:
+            if connection.user_id not in self.user_connections:
+                self.user_connections[connection.user_id] = weakref.WeakSet()
+            self.user_connections[connection.user_id].add(connection)
+
         logger.info(f"WebSocket connected: {connection_id}")
         return connection_id
 
@@ -184,8 +189,8 @@ class EnterpriseWebSocketManager:
 
             # Remove from user connections
             if connection.user_id:
-                user_connections = self.user_connections.get(connection.user_id, set())
-                user_connections.discard(connection_id)
+                user_connections = self.user_connections.get(connection.user_id, weakref.WeakSet())
+                user_connections.discard(connection)
                 if not user_connections:
                     del self.user_connections[connection.user_id]
 
@@ -216,8 +221,8 @@ class EnterpriseWebSocketManager:
 
             # Track user connections
             if user_id not in self.user_connections:
-                self.user_connections[user_id] = set()
-            self.user_connections[user_id].add(connection.connection_id)
+                self.user_connections[user_id] = weakref.WeakSet()
+            self.user_connections[user_id].add(connection)
 
             # Send authentication success
             auth_msg = WebSocketMessage(
@@ -356,8 +361,8 @@ class EnterpriseWebSocketManager:
             connection.subscribed_channels.add(channel)
 
             if channel not in self.channel_subscriptions:
-                self.channel_subscriptions[channel] = set()
-            self.channel_subscriptions[channel].add(connection.connection_id)
+                self.channel_subscriptions[channel] = weakref.WeakSet()
+            self.channel_subscriptions[channel].add(connection)
 
             # Subscribe to Redis channel for cluster support
             await redis_manager.websocket_subscribe(
@@ -387,7 +392,7 @@ class EnterpriseWebSocketManager:
             connection.subscribed_channels.discard(channel)
 
             if channel in self.channel_subscriptions:
-                self.channel_subscriptions[channel].discard(connection.connection_id)
+                self.channel_subscriptions[channel].discard(connection)
                 if not self.channel_subscriptions[channel]:
                     del self.channel_subscriptions[channel]
 
@@ -440,40 +445,33 @@ class EnterpriseWebSocketManager:
 
         disconnected_connections = []
 
-        for connection_id in self.channel_subscriptions[channel]:
-            if exclude_sender and connection_id == sender_connection:
+        for connection in self.channel_subscriptions[channel]:
+            if exclude_sender and connection == sender_connection:
                 continue
 
-            connection = self.connections.get(connection_id)
-            if connection:
-                try:
-                    await connection.send_message(message)
-                except Exception as e:
-                    logger.error(f"Failed to send message to {connection_id}: {e}")
-                    disconnected_connections.append(connection_id)
-            else:
-                disconnected_connections.append(connection_id)
+            try:
+                await connection.send_message(message)
+            except Exception as e:
+                logger.error(f"Failed to send message to {connection.connection_id}: {e}")
+                disconnected_connections.append(connection)
 
         # Clean up disconnected connections
-        for conn_id in disconnected_connections:
-            self.channel_subscriptions[channel].discard(conn_id)
+        for conn in disconnected_connections:
+            self.channel_subscriptions[channel].discard(conn)
 
         # Publish to Redis for cluster support
         await redis_manager.websocket_publish(channel, message.dict())
 
     async def send_to_user(self, user_id: str, message: WebSocketMessage) -> None:
         """Send message to all connections of a specific user."""
-        user_connections = self.user_connections.get(user_id, set())
+        user_connections = self.user_connections.get(user_id, weakref.WeakSet())
 
-        for connection_id in list(user_connections):
-            connection = self.connections.get(connection_id)
-            if connection:
-                try:
-                    await connection.send_message(message)
-                except Exception as e:
-                    logger.error(f"Failed to send message to user {user_id}: {e}")
-            else:
-                user_connections.discard(connection_id)
+        for connection in list(user_connections):
+            try:
+                await connection.send_message(message)
+            except Exception as e:
+                logger.error(f"Failed to send message to user {user_id}: {e}")
+                user_connections.discard(connection)
 
     async def _heartbeat_loop(self) -> None:
         """Background task for connection heartbeat and cleanup."""
@@ -488,17 +486,17 @@ class EnterpriseWebSocketManager:
 
                 expired_connections = []
 
-                for connection_id, connection in self.connections.items():
+                for connection in self.connections.values():
                     # Check for timed out connections
                     last_activity = connection.last_ping or connection.connected_at
 
                     if last_activity < timeout_threshold:
-                        expired_connections.append(connection_id)
+                        expired_connections.append(connection)
 
                 # Clean up expired connections
-                for connection_id in expired_connections:
-                    logger.info(f"Cleaning up expired connection: {connection_id}")
-                    await self.disconnect(connection_id)
+                for connection in expired_connections:
+                    logger.info(f"Cleaning up expired connection: {connection.connection_id}")
+                    await self.disconnect(connection.connection_id)
 
                 logger.debug(f"Heartbeat: {len(self.connections)} active connections")
 

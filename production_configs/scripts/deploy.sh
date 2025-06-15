@@ -146,10 +146,11 @@ setup_gunicorn() {
     log_step "Configuring Gunicorn..."
     
     # Copy Gunicorn configuration if it doesn't exist
-    if [[ ! -f "${APP_DIR}/gunicorn.conf.py" ]]; then
-        if [[ -f "${CONFIG_DIR}/gunicorn.conf.py" ]]; then
-            sudo cp "${CONFIG_DIR}/gunicorn.conf.py" "${APP_DIR}/"
-            sudo chown "$APP_USER:$APP_GROUP" "${APP_DIR}/gunicorn.conf.py"
+    if [[ ! -f "${APP_DIR}/scripts/setup/gunicorn.conf.py" ]]; then
+if [[ -f "${CONFIG_DIR}/gunicorn.conf.py" ]]; then
+sudo mkdir -p "${APP_DIR}/scripts/setup/"
+sudo cp "${CONFIG_DIR}/gunicorn.conf.py" "${APP_DIR}/scripts/setup/"
+sudo chown "$APP_USER:$APP_GROUP" "${APP_DIR}/scripts/setup/gunicorn.conf.py"
             log_info "Gunicorn configuration copied"
         else
             log_warn "Gunicorn configuration not found, using defaults"
@@ -416,7 +417,7 @@ print_summary() {
     echo "Configuration Files:"
     echo "  - Systemd: /etc/systemd/system/${APP_NAME}.service"
     echo "  - Nginx: /etc/nginx/sites-available/${APP_NAME}"
-    echo "  - Gunicorn: ${APP_DIR}/gunicorn.conf.py"
+    echo "  - Gunicorn: ${APP_DIR}/scripts/setup/gunicorn.conf.py"
     echo
 }
 

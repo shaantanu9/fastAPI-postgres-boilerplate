@@ -1,0 +1,12 @@
+
+# Add these imports to your main.py
+from app.middleware.simple_error_tracker import SimpleErrorTracker
+from app.middleware.security_headers import SecurityHeadersMiddleware
+
+# Add these middleware to your FastAPI app
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(SimpleErrorTracker)
+
+# Include health endpoints
+from app.api.v1.endpoints import health
+app.include_router(health.router, prefix="/health", tags=["health"])

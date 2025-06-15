@@ -13,7 +13,16 @@ DATABASE_URL = settings.database_url
 if DATABASE_URL.startswith("postgresql+asyncpg"):
     from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
-    engine = create_async_engine(DATABASE_URL, echo=True)
+    # Production-ready database configuration
+    DATABASE_CONFIG = {
+        "pool_size": 20,          # Base number of connections
+        "max_overflow": 30,       # Additional connections when needed
+        "pool_pre_ping": True,    # Validate connections before use
+        "pool_recycle": 3600,     # Recycle connections every hour
+        "echo": settings.debug if hasattr(settings, 'debug') else False,  # Disable SQL logging in production
+    }
+
+    engine = create_async_engine(DATABASE_URL, **DATABASE_CONFIG)
     AsyncSessionLocal = sessionmaker(
         engine, class_=AsyncSession, expire_on_commit=False,
     )

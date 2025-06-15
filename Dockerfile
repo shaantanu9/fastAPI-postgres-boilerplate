@@ -54,4 +54,4 @@ EXPOSE 8000
 ENTRYPOINT ["docker-entrypoint.sh"]
 
 # Default command
-CMD ["gunicorn", "--config", "gunicorn.conf.py", "app.main:app"] 
+CMD ["gunicorn", "--config", "scripts/setup/gunicorn.conf.py", "app.main:app"] 

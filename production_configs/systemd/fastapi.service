@@ -26,7 +26,7 @@ EnvironmentFile=-/var/www/fastapi/.env
 # Process Management
 ExecStartPre=/bin/rm -f /run/fastapi/gunicorn.sock
 ExecStart=/var/www/fastapi/.venv/bin/gunicorn \
-    --config /var/www/fastapi/production_configs/gunicorn.conf.py \
+    --config /var/www/fastapi/scripts/setup/gunicorn.conf.py \
     --bind unix:/run/fastapi/gunicorn.sock \
     --pid /run/fastapi/gunicorn.pid \
     app.main:app

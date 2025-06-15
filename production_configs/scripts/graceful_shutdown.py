@@ -127,8 +127,8 @@ class GracefulShutdownManager:
         except Exception as e:
             logger.exception(f"Error during graceful shutdown: {e}")
         finally:
-            # Force exit if needed
-            sys.exit(0)
+            # Don't force exit - let the application handle shutdown naturally
+            logger.info("Graceful shutdown process completed")
 
     async def _wait_for_tasks(self) -> None:
         """Wait for background tasks to complete."""

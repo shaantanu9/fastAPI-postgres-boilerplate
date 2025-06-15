@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.v1.endpoints.auth import get_current_user
 from app.db.schemas.user import UserCreate, UserRead, UserUpdate, UserWithRoles
 from app.db.session import get_db
-from app.services.user_service import enhanced_user_service
+from app.services.auth_service import enhanced_user_service
 
 router = APIRouter()
 
