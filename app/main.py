@@ -50,6 +50,11 @@ from app.core.timeouts import (
 )
 from app.middleware.timeout_middleware import TimeoutMiddleware
 
+# Import new production features
+from app.core.tracing import initialize_tracing, shutdown_tracing, TracingMiddleware
+from app.core.log_aggregation import initialize_log_aggregation, shutdown_log_aggregation
+from app.middleware.security_headers import EnhancedSecurityHeadersMiddleware, create_security_headers_middleware
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -148,6 +153,23 @@ from app.websocket.history import MessageHistory
 async def lifespan(app: FastAPI):
     """Application lifespan manager for startup and shutdown events."""
     global _plugin_manager
+
+    # --- Initialize production features ---
+    logger.info("🔧 Initializing production features...")
+    
+    # Initialize distributed tracing
+    try:
+        initialize_tracing()
+        logger.info("✅ Distributed tracing initialized")
+    except Exception as e:
+        logger.warning(f"⚠️ Failed to initialize tracing: {e}")
+    
+    # Initialize log aggregation
+    try:
+        initialize_log_aggregation()
+        logger.info("✅ Log aggregation initialized")
+    except Exception as e:
+        logger.warning(f"⚠️ Failed to initialize log aggregation: {e}")
 
     # --- WebSocket system setup ---
     ws_manager = WebSocketManager()
@@ -273,6 +295,19 @@ async def lifespan(app: FastAPI):
     await shutdown_concurrent_manager()
     logging.info("✅ Shutdown complete. All concurrent processing stopped.")
 
+    # --- Shutdown production features ---
+    try:
+        shutdown_tracing()
+        logger.info("✅ Distributed tracing shutdown complete")
+    except Exception as e:
+        logger.warning(f"⚠️ Error shutting down tracing: {e}")
+    
+    try:
+        shutdown_log_aggregation()
+        logger.info("✅ Log aggregation shutdown complete")
+    except Exception as e:
+        logger.warning(f"⚠️ Error shutting down log aggregation: {e}")
+
     # --- WebSocket system cleanup ---
     ws_manager.stop_heartbeat()
     await ws_manager.redis_pubsub.close()
@@ -337,9 +372,29 @@ def create_app() -> FastAPI:
 
     # Add production middleware (minimal overhead)
     if PRODUCTION_MIDDLEWARE_AVAILABLE:
-        app.add_middleware(SecurityHeadersMiddleware)
+        # Use enhanced security headers middleware instead of basic one
+        app.add_middleware(
+            EnhancedSecurityHeadersMiddleware,
+            enable_csp=True,
+            enable_hsts=True
+        )
         app.add_middleware(SimpleErrorTracker)
-        logger.info("✅ Production middleware enabled")
+        logger.info("✅ Enhanced production middleware enabled")
+    else:
+        # Fallback to basic security headers
+        try:
+            from app.middleware.security_headers import SecurityHeadersMiddleware
+            app.add_middleware(SecurityHeadersMiddleware)
+            logger.info("✅ Basic security headers middleware enabled")
+        except ImportError:
+            logger.warning("⚠️ No security headers middleware available")
+    
+    # Add distributed tracing middleware
+    try:
+        app.add_middleware(TracingMiddleware)
+        logger.info("✅ Distributed tracing middleware enabled")
+    except Exception as e:
+        logger.warning(f"⚠️ Failed to add tracing middleware: {e}")
     
     # Add observability middleware
     app.add_middleware(SecurityLoggingMiddleware)

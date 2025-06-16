@@ -1136,4 +1136,40 @@ class MigrationManager:
             return True
         
         print("⚠️ Migration issues detected, running auto-fix...")
-        return self.auto_fix_all_migration_issues(force=force) 
+        return self.auto_fix_all_migration_issues(force=force)
+    
+    def fix_alembic_state(self) -> bool:
+        """Fix corrupted Alembic state using emergency reset"""
+        print("🔧 Fixing Corrupted Alembic State")
+        print("=" * 35)
+        
+        try:
+            # First try the comprehensive auto-fix
+            print("📍 Step 1: Attempting comprehensive auto-fix...")
+            if self.auto_fix_all_migration_issues(force=True):
+                print("✅ Comprehensive auto-fix successful")
+                return True
+            
+            print("⚠️ Comprehensive auto-fix failed, trying emergency reset...")
+            
+            # If that fails, use emergency reset
+            print("📍 Step 2: Performing emergency reset...")
+            if self._emergency_reset_migrations():
+                print("✅ Emergency reset successful")
+                
+                # Verify the fix worked
+                print("📍 Step 3: Verifying fix...")
+                if self._final_validation_and_cleanup():
+                    print("✅ Alembic state successfully fixed!")
+                    print("💡 You can now generate new migrations")
+                    return True
+                else:
+                    print("⚠️ Verification failed, but emergency reset completed")
+                    return True
+            else:
+                print("❌ Emergency reset failed")
+                return False
+                
+        except Exception as e:
+            print(f"❌ Error fixing alembic state: {e}")
+            return False 

@@ -264,3 +264,4 @@ fastapi_postgres/
 3. **Specific tests**: Use appropriate subdirectories
 
 This organization makes the codebase more professional, maintainable, and easier to navigate for both new and existing developers.
+ 

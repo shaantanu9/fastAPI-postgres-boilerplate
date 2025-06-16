@@ -1,10 +1,12 @@
 from functools import lru_cache
 from urllib.parse import urlparse
 
+from pydantic import ConfigDict
 from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
+    model_config = ConfigDict(extra='ignore', env_file='.env')
     # Database configuration
     database_url: str
     database_url_without_async: str
@@ -84,8 +86,47 @@ class Settings(BaseSettings):
     support_email: str = "support@yourapp.com"
     app_name: str = "Your SaaS App"
 
-    class Config:
-        env_file = ".env"
+    # Security Headers Configuration
+    SECURITY_HEADERS_ENABLED: bool = True
+    CSP_POLICY: str = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' https:; connect-src 'self' https:; media-src 'self'; object-src 'none'; child-src 'self'; frame-ancestors 'none'; form-action 'self'; base-uri 'self';"
+    HSTS_MAX_AGE: int = 31536000  # 1 year
+    HSTS_INCLUDE_SUBDOMAINS: bool = True
+    HSTS_PRELOAD: bool = False
+    REFERRER_POLICY: str = "strict-origin-when-cross-origin"
+    PERMISSIONS_POLICY: str = "geolocation=(), microphone=(), camera=(), payment=(), usb=(), magnetometer=(), gyroscope=(), speaker=()"
+
+    # Distributed Tracing Configuration
+    TRACING_ENABLED: bool = True
+    JAEGER_AGENT_HOST: str = "localhost"
+    JAEGER_AGENT_PORT: int = 6831
+    JAEGER_COLLECTOR_ENDPOINT: str = "http://localhost:14268/api/traces"
+    OTEL_SERVICE_NAME: str = "fastapi-postgres-app"
+    OTEL_SERVICE_VERSION: str = "1.0.0"
+    OTEL_ENVIRONMENT: str = "development"
+    OTEL_EXPORTER_OTLP_ENDPOINT: str = "http://localhost:4317"
+    OTEL_EXPORTER_OTLP_HEADERS: str = ""
+    OTEL_TRACES_SAMPLER: str = "parentbased_traceidratio"
+    OTEL_TRACES_SAMPLER_ARG: float = 0.1  # 10% sampling rate
+    OTEL_RESOURCE_ATTRIBUTES: str = ""
+
+    # Log Aggregation Configuration
+    LOG_AGGREGATION_ENABLED: bool = True
+    LOG_FORMAT: str = "json"  # json or text
+    LOG_JSON_FORMAT: bool = True
+    ELASTICSEARCH_HOST: str = "localhost"
+    ELASTICSEARCH_PORT: int = 9200
+    ELASTICSEARCH_INDEX_PREFIX: str = "fastapi-logs"
+    LOGSTASH_HOST: str = "localhost"
+    LOGSTASH_PORT: int = 5044
+    KIBANA_HOST: str = "localhost"
+    KIBANA_PORT: int = 5601
+    
+    # Structured Logging Settings
+    LOG_CORRELATION_ID_HEADER: str = "X-Correlation-ID"
+    LOG_REQUEST_ID_HEADER: str = "X-Request-ID"
+    LOG_INCLUDE_REQUEST_BODY: bool = False
+    LOG_INCLUDE_RESPONSE_BODY: bool = False
+    LOG_SENSITIVE_DATA_FIELDS: list[str] = ["password", "token", "secret", "key", "authorization"]
 
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)

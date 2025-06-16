@@ -50,7 +50,13 @@ limit_request_fields = 100
 limit_request_field_size = 8190
 
 # Performance tuning
-worker_tmp_dir = "/dev/shm"  # Use RAM disk for better performance
+# Use /dev/shm on Linux, /tmp on macOS/other systems
+import platform
+if platform.system() == "Linux" and os.path.exists("/dev/shm"):
+    worker_tmp_dir = "/dev/shm"  # Use RAM disk for better performance on Linux
+else:
+    worker_tmp_dir = None  # Use default temp directory on macOS/Windows
+
 forwarded_allow_ips = "*"
 secure_scheme_headers = {
     "X-FORWARDED-PROTOCOL": "ssl",

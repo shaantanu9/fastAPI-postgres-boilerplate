@@ -4,6 +4,9 @@ This configuration provides development-friendly settings with automatic reloadi
 simple logging, and no permission issues.
 """
 
+import multiprocessing
+import os
+
 # =============================================================================
 # DEVELOPMENT CONFIGURATION
 # =============================================================================

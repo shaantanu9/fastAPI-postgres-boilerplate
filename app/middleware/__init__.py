@@ -14,10 +14,12 @@ except ImportError as e:
     SecurityLoggingMiddleware = None
 
 try:
-    from .security_headers import SecurityHeadersMiddleware
-    available_middleware.append("SecurityHeadersMiddleware")
+    from .security_headers import SecurityHeadersMiddleware, EnhancedSecurityHeadersMiddleware, create_security_headers_middleware
+    available_middleware.extend(["SecurityHeadersMiddleware", "EnhancedSecurityHeadersMiddleware", "create_security_headers_middleware"])
 except ImportError as e:
     SecurityHeadersMiddleware = None
+    EnhancedSecurityHeadersMiddleware = None
+    create_security_headers_middleware = None
 
 try:
     from .simple_error_tracker import SimpleErrorTracker
@@ -51,16 +53,32 @@ except ImportError as e:
     # Rate limiter might have optional dependencies
     RateLimiter = None
 
+try:
+    from .cors import CORSMiddleware
+    available_middleware.append("CORSMiddleware")
+except ImportError as e:
+    CORSMiddleware = None
+
+try:
+    from .rate_limiting import RateLimitingMiddleware
+    available_middleware.append("RateLimitingMiddleware")
+except ImportError as e:
+    RateLimitingMiddleware = None
+
 __all__ = [name for name in [
     "AdvancedRateLimiter",
     "LoggingMiddleware", 
     "SecurityLoggingMiddleware",
     "RateLimiter",
     "SecurityHeadersMiddleware",
+    "EnhancedSecurityHeadersMiddleware",
+    "create_security_headers_middleware",
     "SimpleErrorTracker",
     "TenantIsolationMiddleware",
     "TenantMiddleware",
     "TimeoutMiddleware",
+    "CORSMiddleware",
+    "RateLimitingMiddleware"
 ] if globals().get(name) is not None]
 
 # Add available middleware list for debugging

@@ -165,3 +165,32 @@
 {"timestamp":"2025-06-14T17:51:22.200115","method":"GET","path":"/api/v1/auth/profile","status_code":404,"execution_time_ms":0.95,"error":null,"user_agent":"python-requests/2.32.3"}
 {"timestamp":"2025-06-14T17:51:22.209688","method":"GET","path":"/api/v1/users/me","status_code":404,"execution_time_ms":4.75,"error":null,"user_agent":"python-requests/2.32.3"}
 {"timestamp":"2025-06-14T17:51:23.362671","method":"GET","path":"/api/v1/test-items","status_code":404,"execution_time_ms":0.95,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-15T07:30:55.528942","method":"GET","path":"/api/v1/health/ready","status_code":404,"execution_time_ms":0.74,"error":null,"user_agent":"curl/8.7.1"}
+{"timestamp":"2025-06-15T09:59:05.647298","method":"POST","path":"/sse","status_code":404,"execution_time_ms":2.24,"error":null,"user_agent":"Cursor/1.1.2 (darwin arm64)"}
+{"timestamp":"2025-06-15T09:59:06.237031","method":"GET","path":"/sse","status_code":404,"execution_time_ms":0.71,"error":null,"user_agent":"node"}
+{"timestamp":"2025-06-15T09:59:06.416426","method":"POST","path":"/mcp","status_code":404,"execution_time_ms":2.88,"error":null,"user_agent":"Cursor/1.1.2 (darwin arm64)"}
+{"timestamp":"2025-06-15T09:59:06.452189","method":"GET","path":"/mcp","status_code":404,"execution_time_ms":3.64,"error":null,"user_agent":"node"}
+{"timestamp":"2025-06-15T09:59:08.089633","method":"POST","path":"/mcp","status_code":404,"execution_time_ms":0.64,"error":null,"user_agent":"node"}
+{"timestamp":"2025-06-15T09:59:08.106752","method":"GET","path":"/mcp","status_code":404,"execution_time_ms":0.63,"error":null,"user_agent":"node"}
+{"timestamp":"2025-06-15T10:02:04.501555","method":"POST","path":"/sse","status_code":404,"execution_time_ms":453.57,"error":null,"user_agent":"Cursor/1.1.2 (darwin arm64)"}
+{"timestamp":"2025-06-15T10:02:06.773687","method":"GET","path":"/sse","status_code":404,"execution_time_ms":2.79,"error":null,"user_agent":"node"}
+{"timestamp":"2025-06-15T10:02:09.807500","method":"POST","path":"/mcp","status_code":404,"execution_time_ms":1.57,"error":null,"user_agent":"Cursor/1.1.2 (darwin arm64)"}
+{"timestamp":"2025-06-15T10:02:10.019421","method":"GET","path":"/mcp","status_code":404,"execution_time_ms":70.36,"error":null,"user_agent":"node"}
+{"timestamp":"2025-06-15T10:02:18.836062","method":"POST","path":"/mcp","status_code":404,"execution_time_ms":2.12,"error":null,"user_agent":"node"}
+{"timestamp":"2025-06-15T10:02:18.924817","method":"GET","path":"/mcp","status_code":404,"execution_time_ms":1.32,"error":null,"user_agent":"node"}
+{"timestamp":"2025-06-15T16:46:35.192768","method":"GET","path":"/api/v1/health","status_code":404,"execution_time_ms":2.97,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-15T17:37:10.972622","method":"GET","path":"/api/v1/health","status_code":404,"execution_time_ms":2.89,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-15T18:57:10.084762","method":"GET","path":"/api/v1/health","status_code":404,"execution_time_ms":15.73,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-15T18:57:17.761289","method":"HEAD","path":"/","status_code":405,"execution_time_ms":0.71,"error":null,"user_agent":"curl/8.7.1"}
+{"timestamp":"2025-06-15T18:57:29.795584","method":"HEAD","path":"/health","status_code":405,"execution_time_ms":1.52,"error":null,"user_agent":"curl/8.7.1"}
+{"timestamp":"2025-06-16T14:37:44.926773","method":"GET","path":"/favicon.ico","status_code":404,"execution_time_ms":2.18,"error":null,"user_agent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36"}
+{"timestamp":"2025-06-16T14:39:01.487838","method":"HEAD","path":"/health","status_code":405,"execution_time_ms":2.8,"error":null,"user_agent":"curl/8.7.1"}
+{"timestamp":"2025-06-16T14:40:39.849318","method":"GET","path":"/api/v1/health","status_code":404,"execution_time_ms":1.39,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-16T14:41:26.327012","method":"HEAD","path":"/api/v1/system/plugins","status_code":405,"execution_time_ms":1.9,"error":null,"user_agent":"curl/8.7.1"}
+{"timestamp":"2025-06-16T14:41:54.954180","method":"GET","path":"/api/v1/system/plugins","status_code":503,"execution_time_ms":7.09,"error":null,"user_agent":"curl/8.7.1"}
+{"timestamp":"2025-06-16T14:42:55.556299","method":"GET","path":"/ready","status_code":503,"execution_time_ms":1061.79,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-16T14:43:05.352628","method":"HEAD","path":"/ready","status_code":405,"execution_time_ms":1.11,"error":null,"user_agent":"curl/8.7.1"}
+{"timestamp":"2025-06-16T14:43:36.638111","method":"GET","path":"/ready","status_code":503,"execution_time_ms":444.67,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-16T14:43:58.301842","method":"HEAD","path":"/health","status_code":405,"execution_time_ms":1.11,"error":null,"user_agent":"curl/8.7.1"}
+{"timestamp":"2025-06-16T14:48:39.508981","method":"GET","path":"/api/v1/system/plugins","status_code":503,"execution_time_ms":2.45,"error":null,"user_agent":"python-requests/2.32.3"}
+{"timestamp":"2025-06-16T14:48:39.591127","method":"GET","path":"/ready","status_code":503,"execution_time_ms":24.55,"error":null,"user_agent":"python-requests/2.32.3"}

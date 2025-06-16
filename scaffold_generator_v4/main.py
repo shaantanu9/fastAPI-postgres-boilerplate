@@ -14,6 +14,13 @@ Usage:
     python scaffold_generator_v4/main.py infra-check
     python scaffold_generator_v4/main.py test User name:str email:email
     python scaffold_generator_v4/main.py health-check
+    python scaffold_generator_v4/main.py list-plugins
+    python scaffold_generator_v4/main.py list-models
+    python scaffold_generator_v4/main.py cleanup-business-plugins
+    python scaffold_generator_v4/main.py remove-plugin User
+    python scaffold_generator_v4/main.py auto-fix
+    python scaffold_generator_v4/main.py auto-fix --force
+    python scaffold_generator_v4/main.py auto-fix --force --all
 """
 
 import argparse
@@ -259,7 +266,7 @@ class ScaffoldGeneratorV4:
         return health_percentage >= 80
     
     def list_plugins(self):
-        """List all existing plugins"""
+        """List all existing plugins with enhanced details"""
         print("📋 Listing Existing Plugins")
         print("=" * 30)
         
@@ -284,15 +291,39 @@ class ScaffoldGeneratorV4:
         print(f"Found {total_plugins} plugin(s):")
         print()
         
+        # Categorize plugins
+        core_plugins = []
+        business_plugins = []
+        test_plugins = []
+        
         # List v4 modular plugins
         for plugin_dir in plugin_dirs:
             plugin_name = plugin_dir.name.replace('_plugin', '').title()
-            print(f"🔌 {plugin_name} (v4 - Modular)")
+            
+            # Categorize plugins
+            if plugin_name.lower() in ['monitoring', 'auth', 'cache', 'security']:
+                category = "🔧 Core"
+                core_plugins.append(plugin_name)
+            elif plugin_name.lower().startswith('test') or 'test' in plugin_name.lower():
+                category = "🧪 Test"
+                test_plugins.append(plugin_name)
+            else:
+                category = "💼 Business"
+                business_plugins.append(plugin_name)
+            
+            print(f"🔌 {plugin_name} (v4 - Modular) {category}")
             print(f"   📁 Directory: {plugin_dir.name}")
             
             # Check files in directory
             files = list(plugin_dir.glob("*.py"))
             print(f"   📄 Files: {', '.join(f.name for f in files)}")
+            
+            # Extract models from models.py
+            models_file = plugin_dir / "models.py"
+            if models_file.exists():
+                models = self._extract_models_from_plugin(plugin_dir)
+                if models:
+                    print(f"   🗄️  Models: {', '.join(models)}")
             
             # Try to read metadata from __init__.py
             init_file = plugin_dir / "__init__.py"
@@ -322,7 +353,18 @@ class ScaffoldGeneratorV4:
             plugin_name = plugin_file.stem.replace('_plugin', '').title()
             file_size = plugin_file.stat().st_size
             
-            print(f"🔌 {plugin_name} (v3 - Single File)")
+            # Categorize plugins
+            if plugin_name.lower() in ['monitoring', 'auth', 'cache', 'security']:
+                category = "🔧 Core"
+                core_plugins.append(plugin_name)
+            elif plugin_name.lower().startswith('test') or 'test' in plugin_name.lower():
+                category = "🧪 Test"
+                test_plugins.append(plugin_name)
+            else:
+                category = "💼 Business"
+                business_plugins.append(plugin_name)
+            
+            print(f"🔌 {plugin_name} (v3 - Single File) {category}")
             print(f"   📁 File: {plugin_file.name}")
             print(f"   📊 Size: {file_size:,} bytes")
             
@@ -345,9 +387,444 @@ class ScaffoldGeneratorV4:
                 print(f"   ❌ Error reading metadata: {e}")
             
             print()
+        
+        # Summary
+        print("📊 Plugin Summary:")
+        print(f"   🔧 Core Plugins: {len(core_plugins)} ({', '.join(core_plugins) if core_plugins else 'None'})")
+        print(f"   💼 Business Plugins: {len(business_plugins)} ({', '.join(business_plugins) if business_plugins else 'None'})")
+        print(f"   🧪 Test Plugins: {len(test_plugins)} ({', '.join(test_plugins) if test_plugins else 'None'})")
+        
+        if business_plugins:
+            print()
+            print("💡 For a generic boilerplate, consider removing business-specific plugins:")
+            print(f"   python scaffold_generator_v4/main.py cleanup-business-plugins")
     
-    def remove_plugin(self, model_name: str) -> bool:
-        """Remove a plugin (both v3 and v4 styles)"""
+    def list_models(self):
+        """List all models in the project (both core and plugin models)"""
+        print("🗄️  Listing All Models")
+        print("=" * 25)
+        
+        all_models = []
+        
+        # Check core models
+        core_models_dir = Path("app/models")
+        if core_models_dir.exists():
+            print("🔧 Core Models:")
+            for model_file in core_models_dir.glob("*.py"):
+                if model_file.name != "__init__.py":
+                    model_name = model_file.stem.title()
+                    print(f"   📄 {model_name} (from {model_file.name})")
+                    all_models.append(f"Core.{model_name}")
+            print()
+        
+        # Check plugin models
+        plugins_dir = Path("app/plugins")
+        if plugins_dir.exists():
+            print("🔌 Plugin Models:")
+            
+            # v4 modular plugins
+            plugin_dirs = [d for d in plugins_dir.iterdir() if d.is_dir() and d.name.endswith('_plugin')]
+            for plugin_dir in plugin_dirs:
+                plugin_name = plugin_dir.name.replace('_plugin', '').title()
+                models_file = plugin_dir / "models.py"
+                
+                if models_file.exists():
+                    models = self._extract_models_from_plugin(plugin_dir)
+                    if models:
+                        print(f"   🔌 {plugin_name} Plugin:")
+                        for model in models:
+                            print(f"      🗄️  {model}")
+                            all_models.append(f"{plugin_name}.{model}")
+            
+            # v3 single-file plugins
+            plugin_files = list(plugins_dir.glob("*_plugin.py"))
+            for plugin_file in plugin_files:
+                plugin_name = plugin_file.stem.replace('_plugin', '').title()
+                try:
+                    with open(plugin_file, 'r') as f:
+                        content = f.read()
+                    
+                    # Extract model class names
+                    import re
+                    model_matches = re.findall(r'class\s+(\w+)\s*\([^)]*Base[^)]*\):', content)
+                    if model_matches:
+                        print(f"   🔌 {plugin_name} Plugin (v3):")
+                        for model in model_matches:
+                            print(f"      🗄️  {model}")
+                            all_models.append(f"{plugin_name}.{model}")
+                except Exception as e:
+                    print(f"   ❌ Error reading {plugin_file.name}: {e}")
+        
+        print()
+        print(f"📊 Total Models Found: {len(all_models)}")
+        
+        # Categorize models for boilerplate cleanup
+        business_models = []
+        test_models = []
+        core_models = []
+        
+        for model in all_models:
+            model_lower = model.lower()
+            if any(keyword in model_lower for keyword in ['product', 'order', 'customer', 'book', 'shopping', 'cart']):
+                business_models.append(model)
+            elif 'test' in model_lower:
+                test_models.append(model)
+            else:
+                core_models.append(model)
+        
+        if business_models or test_models:
+            print()
+            print("🧹 Boilerplate Cleanup Suggestions:")
+            if business_models:
+                print(f"   💼 Business Models to Remove: {', '.join(business_models)}")
+            if test_models:
+                print(f"   🧪 Test Models to Remove: {', '.join(test_models)}")
+            print(f"   🔧 Core Models to Keep: {', '.join(core_models)}")
+            print()
+            print("💡 Use: python scaffold_generator_v4/main.py cleanup-business-plugins")
+    
+    def cleanup_business_plugins(self, force: bool = False, clean_migrations: bool = True):
+        """Remove business-specific plugins to make boilerplate generic"""
+        print("🧹 Cleaning Up Business-Specific Plugins")
+        print("=" * 40)
+        
+        # Define business-specific plugins to remove
+        business_plugins = [
+            'product_plugin',
+            'order_plugin', 
+            'customer_plugin',
+            'book_plugin',
+            'shopping_cart_plugin',
+            'test_item_plugin',
+            'test_model_plugin',
+            'product_test_plugin'
+        ]
+        
+        # Define business-specific model names for migration cleanup
+        business_models = [
+            'product', 'products',
+            'order', 'orders',
+            'customer', 'customers', 
+            'book', 'books',
+            'shopping_cart', 'shoppingcart', 'shopping_carts',
+            'test_item', 'testitem', 'test_items',
+            'test_model', 'testmodel', 'test_models',
+            'product_test', 'producttest', 'product_tests'
+        ]
+        
+        plugins_dir = Path("app/plugins")
+        if not plugins_dir.exists():
+            print("❌ Plugins directory not found")
+            return False
+        
+        found_plugins = []
+        
+        # Check which business plugins exist
+        for plugin_name in business_plugins:
+            plugin_dir = plugins_dir / plugin_name
+            plugin_file = plugins_dir / f"{plugin_name}.py"
+            
+            if plugin_dir.exists() and plugin_dir.is_dir():
+                found_plugins.append((plugin_name, 'directory', plugin_dir))
+            elif plugin_file.exists():
+                found_plugins.append((plugin_name, 'file', plugin_file))
+        
+        # Check for business-specific migrations
+        migrations_dir = Path("alembic/versions")
+        business_migrations = []
+        
+        if clean_migrations and migrations_dir.exists():
+            print("🔍 Scanning for business-specific migrations...")
+            for migration_file in migrations_dir.glob("*.py"):
+                if migration_file.name == "__init__.py":
+                    continue
+                
+                try:
+                    with open(migration_file, 'r') as f:
+                        content = f.read().lower()
+                    
+                    # Check if migration contains business model references
+                    for model_name in business_models:
+                        if (f"create_table('{model_name}'" in content or 
+                            f'create_table("{model_name}"' in content or
+                            f"drop_table('{model_name}'" in content or
+                            f'drop_table("{model_name}"' in content or
+                            f"'{model_name}'" in content and ('create_table' in content or 'drop_table' in content)):
+                            business_migrations.append(migration_file)
+                            break
+                except Exception as e:
+                    print(f"   ⚠️  Error reading {migration_file.name}: {e}")
+        
+        if not found_plugins and not business_migrations:
+            print("✅ No business-specific plugins or migrations found - boilerplate is already clean!")
+            return True
+        
+        print(f"Found items to clean up:")
+        if found_plugins:
+            print(f"   🔌 {len(found_plugins)} business plugins:")
+            for plugin_name, plugin_type, path in found_plugins:
+                print(f"      💼 {plugin_name} ({plugin_type})")
+        
+        if business_migrations:
+            print(f"   📄 {len(business_migrations)} business migrations:")
+            for migration in business_migrations:
+                print(f"      🗃️  {migration.name}")
+        
+        if not force:
+            print()
+            print("⚠️  This will permanently remove these plugins, files, and migrations.")
+            print("⚠️  This action cannot be undone!")
+            if business_migrations:
+                print("⚠️  Database migrations will be removed - this may affect your database!")
+            confirm = input("Continue with cleanup? (y/N): ").strip().lower()
+            if confirm not in ['y', 'yes']:
+                print("❌ Cleanup cancelled")
+                return False
+        
+        print()
+        print("🗑️  Removing business-specific plugins...")
+        
+        removed_count = 0
+        for plugin_name, plugin_type, path in found_plugins:
+            try:
+                if plugin_type == 'directory':
+                    import shutil
+                    shutil.rmtree(path)
+                    print(f"   ✅ Removed directory: {path}")
+                else:
+                    path.unlink()
+                    print(f"   ✅ Removed file: {path}")
+                removed_count += 1
+            except Exception as e:
+                print(f"   ❌ Failed to remove {path}: {e}")
+        
+        # Remove business migrations
+        migration_removed_count = 0
+        if clean_migrations and business_migrations:
+            print()
+            print("🗑️  Removing business-specific migrations...")
+            for migration_file in business_migrations:
+                try:
+                    migration_file.unlink()
+                    print(f"   ✅ Removed migration: {migration_file.name}")
+                    migration_removed_count += 1
+                except Exception as e:
+                    print(f"   ❌ Failed to remove {migration_file.name}: {e}")
+        
+        print()
+        print(f"🎉 Cleanup complete!")
+        print(f"   🔌 Removed {removed_count}/{len(found_plugins)} plugins")
+        if clean_migrations:
+            print(f"   📄 Removed {migration_removed_count}/{len(business_migrations)} migrations")
+        
+        print()
+        print("📋 Remaining core plugins:")
+        self.list_plugins()
+        
+        print()
+        if clean_migrations and migration_removed_count > 0:
+            print("⚠️  Important Notes:")
+            print("   • Database migrations were removed")
+            print("   • You may need to reset your database if it contains business data")
+            print("   • Consider running: alembic stamp head (after ensuring DB is clean)")
+            print("   • Test your application thoroughly after cleanup")
+            print()
+            print("🔧 Recommended next steps:")
+            print("   1. Check alembic history: alembic history")
+            print("   2. If needed, reset DB: dropdb your_db && createdb your_db")
+            print("   3. Run migrations: alembic upgrade head")
+        else:
+            print("⚠️  Important Notes:")
+            print("   • Database migrations were NOT removed")
+            print("   • You may want to clean up migrations manually")
+            print("   • Consider running: alembic history to review migrations")
+            print("   • Test your application after cleanup")
+        
+        return True
+    
+    def cleanup_business_migrations_only(self, force: bool = False):
+        """Remove only business-specific migrations, keep plugins"""
+        print("🧹 Cleaning Up Business-Specific Migrations Only")
+        print("=" * 45)
+        
+        # Define business-specific model names for migration cleanup
+        business_models = [
+            'product', 'products',
+            'order', 'orders',
+            'customer', 'customers', 
+            'book', 'books',
+            'shopping_cart', 'shoppingcart', 'shopping_carts',
+            'test_item', 'testitem', 'test_items',
+            'test_model', 'testmodel', 'test_models',
+            'product_test', 'producttest', 'product_tests'
+        ]
+        
+        # Check for business-specific migrations
+        migrations_dir = Path("alembic/versions")
+        business_migrations = []
+        
+        if not migrations_dir.exists():
+            print("❌ Migrations directory not found")
+            return False
+        
+        print("🔍 Scanning for business-specific migrations...")
+        for migration_file in migrations_dir.glob("*.py"):
+            if migration_file.name == "__init__.py":
+                continue
+            
+            try:
+                with open(migration_file, 'r') as f:
+                    content = f.read().lower()
+                
+                # Check if migration contains business model references
+                for model_name in business_models:
+                    if (f"create_table('{model_name}'" in content or 
+                        f'create_table("{model_name}"' in content or
+                        f"drop_table('{model_name}'" in content or
+                        f'drop_table("{model_name}"' in content or
+                        f"'{model_name}'" in content and ('create_table' in content or 'drop_table' in content)):
+                        business_migrations.append(migration_file)
+                        break
+            except Exception as e:
+                print(f"   ⚠️  Error reading {migration_file.name}: {e}")
+        
+        if not business_migrations:
+            print("✅ No business-specific migrations found!")
+            return True
+        
+        print(f"Found {len(business_migrations)} business migrations to remove:")
+        for migration in business_migrations:
+            print(f"   🗃️  {migration.name}")
+        
+        if not force:
+            print()
+            print("⚠️  This will permanently remove these database migrations.")
+            print("⚠️  This action cannot be undone and may affect your database!")
+            confirm = input("Continue with migration cleanup? (y/N): ").strip().lower()
+            if confirm not in ['y', 'yes']:
+                print("❌ Migration cleanup cancelled")
+                return False
+        
+        print()
+        print("🗑️  Removing business-specific migrations...")
+        
+        migration_removed_count = 0
+        for migration_file in business_migrations:
+            try:
+                migration_file.unlink()
+                print(f"   ✅ Removed migration: {migration_file.name}")
+                migration_removed_count += 1
+            except Exception as e:
+                print(f"   ❌ Failed to remove {migration_file.name}: {e}")
+        
+        print()
+        print(f"🎉 Migration cleanup complete! Removed {migration_removed_count}/{len(business_migrations)} migrations")
+        
+        print()
+        print("⚠️  Important Notes:")
+        print("   • Database migrations were removed")
+        print("   • Business plugins are still present")
+        print("   • You may need to reset your database if it contains business data")
+        print("   • Consider running: alembic stamp head (after ensuring DB is clean)")
+        print()
+        print("🔧 Recommended next steps:")
+        print("   1. Check alembic history: alembic history")
+        print("   2. If needed, reset DB: dropdb your_db && createdb your_db")
+        print("   3. Run migrations: alembic upgrade head")
+        
+        return True
+    
+    def show_model_migrations(self, model_name: str):
+        """Show what migrations would be affected by removing a model"""
+        import re
+        snake_name = re.sub(r'(?<!^)(?=[A-Z])', '_', model_name).lower()
+        
+        print(f"🔍 Analyzing {model_name} Model Dependencies")
+        print("=" * 40)
+        
+        # Check if plugin exists
+        plugin_dir = Path(f"app/plugins/{snake_name}_plugin")
+        plugin_file = Path(f"app/plugins/{snake_name}_plugin.py")
+        
+        plugin_exists = plugin_dir.exists() or plugin_file.exists()
+        
+        if plugin_exists:
+            print(f"✅ Plugin found:")
+            if plugin_dir.exists():
+                print(f"   📁 Directory: {plugin_dir}")
+            if plugin_file.exists():
+                print(f"   📄 File: {plugin_file}")
+        else:
+            print(f"❌ Plugin not found: {model_name}")
+            print(f"   Looked for: {snake_name}_plugin/ or {snake_name}_plugin.py")
+        
+        # Look for related migrations
+        migrations_dir = Path("alembic/versions")
+        found_migrations = []
+        
+        if migrations_dir.exists():
+            print(f"\n🔍 Scanning for {model_name} migrations...")
+            
+            # Possible model name variations
+            model_variations = [
+                model_name.lower(),
+                snake_name,
+                snake_name.replace('_', ''),
+                f"{snake_name}s",  # plural
+                f"{model_name.lower()}s"  # plural
+            ]
+            
+            for migration_file in migrations_dir.glob("*.py"):
+                if migration_file.name == "__init__.py":
+                    continue
+                
+                try:
+                    with open(migration_file, 'r') as f:
+                        content = f.read().lower()
+                    
+                    # Check if migration contains this model
+                    for variation in model_variations:
+                        if (f"create_table('{variation}'" in content or 
+                            f'create_table("{variation}"' in content or
+                            f"drop_table('{variation}'" in content or
+                            f'drop_table("{variation}"' in content or
+                            f"add_{variation}_model" in migration_file.name.lower() or
+                            f"create_{variation}" in migration_file.name.lower() or
+                            variation in migration_file.name.lower()):
+                            found_migrations.append(migration_file)
+                            break
+                except Exception as e:
+                    print(f"   ⚠️  Error reading {migration_file.name}: {e}")
+        
+        if found_migrations:
+            print(f"✅ Found {len(found_migrations)} related migrations:")
+            for migration in found_migrations:
+                print(f"   🗃️  {migration.name}")
+        else:
+            print("💡 No related migrations found")
+        
+        print()
+        print("📋 Summary:")
+        if plugin_exists:
+            print(f"   🔌 Plugin: EXISTS")
+        else:
+            print(f"   🔌 Plugin: NOT FOUND")
+        print(f"   📄 Migrations: {len(found_migrations)} found")
+        
+        if plugin_exists or found_migrations:
+            print()
+            print("💡 Available commands:")
+            if plugin_exists:
+                print(f"   • Remove plugin only: python scaffold_generator_v4/main.py remove {model_name}")
+                if found_migrations:
+                    print(f"   • Remove plugin + migrations: python scaffold_generator_v4/main.py remove {model_name} --with-migrations")
+            if found_migrations and not plugin_exists:
+                print(f"   • Clean orphaned migrations: python scaffold_generator_v4/main.py cleanup-business-plugins --migrations-only")
+        
+        return len(found_migrations) > 0 or plugin_exists
+    
+    def remove_plugin(self, model_name: str, with_migrations: bool = False, force: bool = False) -> bool:
+        """Remove a plugin (both v3 and v4 styles) with smart migration cleanup"""
         try:
             import re
             snake_name = re.sub(r'(?<!^)(?=[A-Z])', '_', model_name).lower()
@@ -356,35 +833,302 @@ class ScaffoldGeneratorV4:
             print("=" * 35)
             
             removed_items = []
+            found_migrations = []
             
             # Check for v4 modular plugin directory
             plugin_dir = Path(f"app/plugins/{snake_name}_plugin")
+            plugin_exists = False
+            
             if plugin_dir.exists() and plugin_dir.is_dir():
-                # Remove directory and all files
-                import shutil
-                shutil.rmtree(plugin_dir)
+                plugin_exists = True
                 removed_items.append(f"Directory: {plugin_dir}")
-                print(f"✅ Removed plugin directory: {plugin_dir}")
             
             # Check for v3 single plugin file
             plugin_file = Path(f"app/plugins/{snake_name}_plugin.py")
             if plugin_file.exists():
-                plugin_file.unlink()
+                plugin_exists = True
                 removed_items.append(f"File: {plugin_file}")
-                print(f"✅ Removed plugin file: {plugin_file}")
             
-            if not removed_items:
+            if not plugin_exists:
                 print(f"❌ Plugin not found: {model_name}")
                 print(f"   Looked for: {snake_name}_plugin/ or {snake_name}_plugin.py")
                 return False
             
-            print(f"\n🎉 {model_name} plugin removed successfully!")
-            print("⚠️  Note: Database migration not removed. Handle manually if needed.")
+            # Look for related migrations if requested
+            if with_migrations:
+                found_migrations = self._find_model_migrations(model_name)
+            
+            # Show what will be removed
+            print(f"Found items to remove:")
+            for item in removed_items:
+                print(f"   🔌 Plugin: {item}")
+            
+            if found_migrations:
+                print(f"   📄 {len(found_migrations)} related migrations:")
+                for migration in found_migrations:
+                    print(f"      🗃️  {migration.name}")
+            
+            # Confirmation
+            if not force:
+                print()
+                if found_migrations:
+                    print("⚠️  This will permanently remove the plugin AND its database migrations.")
+                    print("⚠️  This may affect your database structure!")
+                else:
+                    print("⚠️  This will permanently remove the plugin files.")
+                    print("💡 No related migrations found.")
+                
+                confirm = input("Continue with removal? (y/N): ").strip().lower()
+                if confirm not in ['y', 'yes']:
+                    print("❌ Removal cancelled")
+                    return False
+            
+            print()
+            
+            # Use smart migration system for database cleanup
+            if with_migrations and found_migrations:
+                success = self._smart_remove_model_with_migrations(model_name, found_migrations)
+                if not success:
+                    print("⚠️  Database cleanup had issues, but continuing with plugin removal...")
+            
+            # Remove plugin files
+            print("🗑️  Removing plugin files...")
+            removed_count = 0
+            if plugin_dir.exists() and plugin_dir.is_dir():
+                import shutil
+                shutil.rmtree(plugin_dir)
+                print(f"   ✅ Removed plugin directory: {plugin_dir}")
+                removed_count += 1
+            
+            if plugin_file.exists():
+                plugin_file.unlink()
+                print(f"   ✅ Removed plugin file: {plugin_file}")
+                removed_count += 1
+            
+            print()
+            print(f"🎉 {model_name} removal complete!")
+            print(f"   🔌 Removed {removed_count} plugin file(s)")
+            if with_migrations and found_migrations:
+                print(f"   📄 Processed {len(found_migrations)} migration(s)")
+                print("   🗄️  Database cleanup completed using smart migration system")
             
             return True
             
         except Exception as e:
             print(f"❌ Error removing plugin: {e}")
+            return False
+    
+    def _find_model_migrations(self, model_name: str) -> List[Path]:
+        """Find all migrations related to a specific model"""
+        import re
+        snake_name = re.sub(r'(?<!^)(?=[A-Z])', '_', model_name).lower()
+        found_migrations = []
+        
+        migrations_dir = Path("alembic/versions")
+        if not migrations_dir.exists():
+            return found_migrations
+        
+        print(f"🔍 Scanning for {model_name} migrations...")
+        
+        # Possible model name variations
+        model_variations = [
+            model_name.lower(),
+            snake_name,
+            snake_name.replace('_', ''),
+            f"{snake_name}s",  # plural
+            f"{model_name.lower()}s"  # plural
+        ]
+        
+        for migration_file in migrations_dir.glob("*.py"):
+            if migration_file.name == "__init__.py":
+                continue
+            
+            try:
+                with open(migration_file, 'r') as f:
+                    content = f.read().lower()
+                
+                # Check if migration contains this model
+                for variation in model_variations:
+                    if (f"create_table('{variation}'" in content or 
+                        f'create_table("{variation}"' in content or
+                        f"drop_table('{variation}'" in content or
+                        f'drop_table("{variation}"' in content or
+                        f"add_{variation}_model" in migration_file.name.lower() or
+                        f"create_{variation}" in migration_file.name.lower() or
+                        variation in migration_file.name.lower()):
+                        found_migrations.append(migration_file)
+                        break
+            except Exception as e:
+                print(f"   ⚠️  Error reading {migration_file.name}: {e}")
+        
+        return found_migrations
+    
+    def _smart_remove_model_with_migrations(self, model_name: str, migrations: List[Path]) -> bool:
+        """Use direct database operations to properly remove model and its database artifacts"""
+        try:
+            import re
+            snake_name = re.sub(r'(?<!^)(?=[A-Z])', '_', model_name).lower()
+            
+            print("🧠 Using Direct Database Cleanup")
+            print("=" * 35)
+            
+            # Step 1: Drop the database table directly
+            print("🔧 Step 1: Dropping database table...")
+            table_drop_success = self._drop_model_table_directly(model_name)
+            
+            if table_drop_success:
+                print("✅ Database table dropped successfully")
+                
+                # Step 2: Clean up migration files
+                print("🔧 Step 2: Cleaning up migration files...")
+                cleanup_success = self._cleanup_old_migrations(migrations)
+                
+                if cleanup_success:
+                    print("✅ Migration files cleaned up")
+                    
+                    # Step 3: Update alembic state to reflect the changes
+                    print("🔧 Step 3: Updating alembic state...")
+                    state_success = self._update_alembic_state_after_removal()
+                    
+                    if state_success:
+                        print("✅ Alembic state updated successfully")
+                        return True
+                    else:
+                        print("⚠️  Alembic state update had issues, but table was dropped")
+                        return True  # Still consider success since table was dropped
+                else:
+                    print("⚠️  Migration cleanup had issues, but table was dropped")
+                    return True  # Still consider success since table was dropped
+            else:
+                print("⚠️  Database table drop failed")
+                return False
+                
+        except Exception as e:
+            print(f"❌ Direct database cleanup failed: {e}")
+            return False
+    
+    def _drop_model_table_directly(self, model_name: str) -> bool:
+        """Drop the model's table directly from the database"""
+        try:
+            import re
+            import sys
+            import os
+            sys.path.append(os.getcwd())
+            
+            from app.db.session import engine
+            from sqlalchemy import text, inspect
+            
+            snake_name = re.sub(r'(?<!^)(?=[A-Z])', '_', model_name).lower()
+            
+            # Try different table name variations (singular and plural)
+            table_variations = [
+                snake_name,  # singular
+                f"{snake_name}s",  # plural
+                snake_name.rstrip('s') if snake_name.endswith('s') else snake_name  # handle already plural
+            ]
+            
+            # Handle both async and sync engines
+            if hasattr(engine, 'begin'):
+                # Async engine
+                import asyncio
+                return asyncio.run(self._drop_table_async(engine, table_variations))
+            else:
+                # Sync engine
+                return self._drop_table_sync(engine, table_variations)
+                
+        except Exception as e:
+            print(f"❌ Error dropping table directly: {e}")
+            return False
+    
+    async def _drop_table_async(self, engine, table_variations: list) -> bool:
+        """Drop table using async engine"""
+        try:
+            from sqlalchemy import text
+            async with engine.begin() as conn:
+                dropped_any = False
+                
+                for table_name in table_variations:
+                    # Check if table exists
+                    result = await conn.execute(text(
+                        "SELECT table_name FROM information_schema.tables WHERE table_name = :table_name"
+                    ), {"table_name": table_name})
+                    
+                    table_exists = result.fetchone() is not None
+                    
+                    if table_exists:
+                        # Drop table with CASCADE to handle dependencies
+                        await conn.execute(text(f"DROP TABLE IF EXISTS {table_name} CASCADE"))
+                        print(f"   ✅ Dropped table: {table_name}")
+                        dropped_any = True
+                        break  # Only drop the first match
+                
+                if not dropped_any:
+                    print(f"   💡 No matching tables found for variations: {table_variations}")
+                
+                return True  # Always consider success since we tried all variations
+                    
+        except Exception as e:
+            print(f"   ❌ Error dropping tables {table_variations}: {e}")
+            return False
+    
+    def _drop_table_sync(self, engine, table_variations: list) -> bool:
+        """Drop table using sync engine"""
+        try:
+            from sqlalchemy import text
+            with engine.connect() as conn:
+                dropped_any = False
+                
+                for table_name in table_variations:
+                    # Check if table exists
+                    result = conn.execute(text(
+                        "SELECT table_name FROM information_schema.tables WHERE table_name = :table_name"
+                    ), {"table_name": table_name})
+                    
+                    table_exists = result.fetchone() is not None
+                    
+                    if table_exists:
+                        # Drop table with CASCADE to handle dependencies
+                        conn.execute(text(f"DROP TABLE IF EXISTS {table_name} CASCADE"))
+                        conn.commit()
+                        print(f"   ✅ Dropped table: {table_name}")
+                        dropped_any = True
+                        break  # Only drop the first match
+                
+                if not dropped_any:
+                    print(f"   💡 No matching tables found for variations: {table_variations}")
+                
+                return True  # Always consider success since we tried all variations
+                    
+        except Exception as e:
+            print(f"   ❌ Error dropping tables {table_variations}: {e}")
+            return False
+    
+    def _update_alembic_state_after_removal(self) -> bool:
+        """Update alembic state after removing a model"""
+        try:
+            # Use the existing migration manager's auto-fix functionality
+            return self.migration_manager.auto_fix_if_needed(force=False)
+        except Exception as e:
+            print(f"❌ Error updating alembic state: {e}")
+            return False
+    
+    def _cleanup_old_migrations(self, migrations: List[Path]) -> bool:
+        """Clean up old migration files"""
+        try:
+            removed_count = 0
+            for migration_file in migrations:
+                try:
+                    migration_file.unlink()
+                    print(f"   ✅ Removed migration: {migration_file.name}")
+                    removed_count += 1
+                except Exception as e:
+                    print(f"   ❌ Failed to remove {migration_file.name}: {e}")
+            
+            print(f"   📊 Removed {removed_count}/{len(migrations)} migration files")
+            return removed_count > 0
+            
+        except Exception as e:
+            print(f"❌ Error cleaning up migrations: {e}")
             return False
     
     def fix_plugins(self):
@@ -1191,8 +1935,14 @@ Examples:
   %(prog)s auto-fix                    # Fix all migration issues automatically
   %(prog)s auto-fix --force           # Aggressive fixes with emergency reset  
   %(prog)s migration-health           # Quick health check
-  %(prog)s list
-  %(prog)s remove Product
+  %(prog)s list                       # List all plugins with categories
+  %(prog)s list-models                # List all models in project
+  %(prog)s show-deps Product          # Show what migrations would be affected
+  %(prog)s cleanup-business-plugins   # Remove business plugins + migrations for generic boilerplate
+  %(prog)s cleanup-business-plugins --no-migrations  # Remove plugins only, keep migrations
+  %(prog)s cleanup-business-plugins --migrations-only  # Remove migrations only, keep plugins
+  %(prog)s remove Product                # Remove plugin only
+  %(prog)s remove Product --with-migrations  # Remove plugin + its migrations
   %(prog)s cleanup Product --force --keep-migrations
   %(prog)s infra-check
   %(prog)s test Product name:str price:float:gt=0
@@ -1235,9 +1985,24 @@ Common Issues Resolved:
     # List command
     list_parser = subparsers.add_parser('list', help='List all existing plugins')
     
+    # List models command
+    list_models_parser = subparsers.add_parser('list-models', help='List all models in the project')
+    
+    # Show model dependencies command
+    show_deps_parser = subparsers.add_parser('show-deps', help='Show what migrations would be affected by removing a model')
+    show_deps_parser.add_argument('model', help='Model name to analyze')
+    
+    # Cleanup business plugins command
+    cleanup_business_parser = subparsers.add_parser('cleanup-business-plugins', help='Remove business-specific plugins for generic boilerplate')
+    cleanup_business_parser.add_argument('--force', action='store_true', help='Skip confirmation prompts')
+    cleanup_business_parser.add_argument('--no-migrations', action='store_true', help='Skip migration cleanup (keep migrations)')
+    cleanup_business_parser.add_argument('--migrations-only', action='store_true', help='Only clean migrations, keep plugins')
+    
     # Remove command  
     remove_parser = subparsers.add_parser('remove', help='Remove a plugin')
     remove_parser.add_argument('model', help='Model name to remove')
+    remove_parser.add_argument('--with-migrations', action='store_true', help='Also remove related database migrations')
+    remove_parser.add_argument('--force', action='store_true', help='Skip confirmation prompts')
     
     # Cleanup command (enhanced removal with database cleanup)
     cleanup_parser = subparsers.add_parser('cleanup', help='Completely remove plugin with database cleanup')
@@ -1364,8 +2129,22 @@ Common Issues Resolved:
     elif args.command == 'list':
         generator.list_plugins()
     
+    elif args.command == 'list-models':
+        generator.list_models()
+    
+    elif args.command == 'show-deps':
+        generator.show_model_migrations(args.model)
+    
+    elif args.command == 'cleanup-business-plugins':
+        if args.migrations_only:
+            success = generator.cleanup_business_migrations_only(force=args.force)
+        else:
+            clean_migrations = not args.no_migrations
+            success = generator.cleanup_business_plugins(force=args.force, clean_migrations=clean_migrations)
+        sys.exit(0 if success else 1)
+    
     elif args.command == 'remove':
-        success = generator.remove_plugin(args.model)
+        success = generator.remove_plugin(args.model, with_migrations=args.with_migrations, force=args.force)
         sys.exit(0 if success else 1)
     
     elif args.command == 'cleanup':

@@ -147,7 +147,7 @@ setup_gunicorn() {
     
     # Copy Gunicorn configuration if it doesn't exist
     if [[ ! -f "${APP_DIR}/scripts/setup/gunicorn.conf.py" ]]; then
-if [[ -f "${CONFIG_DIR}/gunicorn.conf.py" ]]; then
+        if [[ -f "${CONFIG_DIR}/gunicorn.conf.py" ]]; then
 sudo mkdir -p "${APP_DIR}/scripts/setup/"
 sudo cp "${CONFIG_DIR}/gunicorn.conf.py" "${APP_DIR}/scripts/setup/"
 sudo chown "$APP_USER:$APP_GROUP" "${APP_DIR}/scripts/setup/gunicorn.conf.py"

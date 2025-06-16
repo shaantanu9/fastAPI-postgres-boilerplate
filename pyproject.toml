@@ -65,6 +65,22 @@ dependencies = [
     "asgi-lifespan>=2.1.0",
     "pytest-asyncio>=1.0.0",
     "httpx-ws>=0.7.2",
+    # Production monitoring and observability dependencies
+    "opentelemetry-api>=1.21.0",
+    "opentelemetry-sdk>=1.21.0",
+    "opentelemetry-instrumentation>=0.42b0",
+    "opentelemetry-instrumentation-fastapi>=0.42b0",
+    "opentelemetry-instrumentation-httpx>=0.42b0",
+    "opentelemetry-instrumentation-requests>=0.42b0",
+    "opentelemetry-instrumentation-sqlalchemy>=0.42b0",
+    "opentelemetry-instrumentation-psycopg2>=0.42b0",
+    "opentelemetry-instrumentation-redis>=0.42b0",
+    "opentelemetry-instrumentation-logging>=0.42b0",
+    "opentelemetry-exporter-jaeger-thrift>=1.21.0",
+    "opentelemetry-exporter-otlp-proto-grpc>=1.21.0",
+    # ELK stack dependencies for log aggregation
+    "elasticsearch>=8.11.0",
+    "python-logstash>=0.4.8",
 ]
 [tool.poetry.dependencies]
 python = "^3.11"
